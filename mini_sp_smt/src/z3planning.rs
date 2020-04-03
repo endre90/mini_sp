@@ -5,28 +5,6 @@ use std::collections::HashMap;
 use z3_sys::*;
 use super::*;
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Predicate {
-    AND(Vec<Predicate>),
-    OR(Vec<Predicate>),
-    NOT(Box<Predicate>),
-    EQVAL(Variable, String),
-    NEQVAL(Variable, String),
-    EQVAR(Variable, Variable),
-    NEQVAR(Variable, Variable)
-}
-
-impl Predicate {
-    pub fn new(&mut self, state: &Vec<Assignment>) {
-        match self {
-            Predicate::AND(x) => x.iter_mut().for_each(|p| p.new(state)),
-            Predicate::OR(x) => x.iter_mut().for_each(|p| p.new(state)),
-            Predicate::NOT(x) => x.new(state),
-            _=> panic!("flatten values")
-        }
-    }
-}
-
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Variable {
     n: String,    
@@ -40,13 +18,6 @@ pub struct Assignment {
     val: String,
 }
 
-// #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-// pub struct Transition {
-//     n: String,
-//     g: Vec<Assignment>,
-//     u: Vec<Assignment>
-// }
-
 #[derive(PartialEq, Clone, Debug)]
 pub struct Transition {
     n: String,
@@ -55,7 +26,7 @@ pub struct Transition {
 }
 
 #[derive(Debug)]
-pub struct Problem {
+pub struct PlanningProblem {
     name: String,
     vars: Vec<Variable>,
     initial: Vec<Assignment>,
@@ -66,22 +37,48 @@ pub struct Problem {
 }
 
 #[derive(Debug)]
-pub struct Frame {
+pub struct PlanningFrame {
     state: Vec<Assignment>,
     transition: Transition,
 }
 
 #[derive(Debug)]
-pub struct Result {
+pub struct PlanningResult {
     plan_found: bool,
     plan_length: u32,
-    trace: Vec<Frame>,
+    trace: Vec<PlanningFrame>,
     time_to_solve: std::time::Duration,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Predicate {
+    AND(Vec<Predicate>),
+    OR(Vec<Predicate>),
+    NOT(Box<Predicate>),
+    EQVAL(Variable, String),
+    NEQVAL(Variable, String),
+    EQVAR(Variable, Variable),
+    NEQVAR(Variable, Variable),
+    TRUE,
+    FALSE
+}
+
+pub struct PredicateToAstZ3<'ctx>{
+    pub ctx: &'ctx ContextZ3,
+    pub pred: Predicate,
+    pub step: u32,
+    pub r: Z3_ast
+}
+
+#[derive(Debug)]
+pub struct Sequential {
+    p: PlanningProblem,
+    r: PlanningResult
 }
 
 impl Variable {
     /// Creates a new Variable
-    pub fn new(n: &str, t: &str, d: Vec<&str>) -> Variable {
+    pub fn new(n: &str, t: &str, d: &Vec<&str>) -> Variable {
         Variable { n: n.to_string(), 
                    t: t.to_string(),
                    d: d.iter().map(|x| x.to_string()).collect::<Vec<String>>()}
@@ -109,21 +106,15 @@ impl Transition {
     }
 }
 
-// impl Transitions {
-//     pub fn new(t: Vec<Transition>) -> Transitions {
-//         Transitions { t: t }
-//     }
-// }
-
-impl Problem {
+impl PlanningProblem {
     pub fn new(name: String,
                vars: Vec<Variable>,
                initial: Vec<Assignment>,
                goal: Vec<Assignment>,
                trans: Vec<Transition>,
                specs: Vec<Predicate>,
-               max_steps: u32) -> Problem {
-        Problem {
+               max_steps: u32) -> PlanningProblem {
+        PlanningProblem {
             name: name.to_string(),
             vars: vars,
             initial: initial,
@@ -135,10 +126,68 @@ impl Problem {
     }
 }
 
+impl Predicate {
+    pub fn new(&mut self, state: &Vec<Assignment>) {
+        match self {
+            Predicate::AND(x) => x.iter_mut().for_each(|p| p.new(state)),
+            Predicate::OR(x) => x.iter_mut().for_each(|p| p.new(state)),
+            Predicate::NOT(x) => x.new(state),
+            _=> panic!("flatten values")
+        }
+    }
+}
+
+// impl Sequential {
+//     pub fn new(p: &PlanningProblem) -> PlanningResult {
+
+//     }
+// }
+
+
+impl <'ctx> PredicateToAstZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, pred: &Predicate, step: u32) -> Z3_ast {
+        match pred {
+            Predicate::TRUE => BoolZ3::new(&ctx, true),
+            Predicate::FALSE => BoolZ3::new(&ctx, false),
+            Predicate::NOT(p) => NOTZ3::new(&ctx, PredicateToAstZ3::new(&ctx, p, step)),
+            Predicate::AND(p) => ANDZ3::new(&ctx, p.iter().map(|x| PredicateToAstZ3::new(&ctx, x, step)).collect()),
+            Predicate::OR(p) => ORZ3::new(&ctx, p.iter().map(|x| PredicateToAstZ3::new(&ctx, x, step)).collect()),
+            Predicate::EQVAL(x, y) => {
+                let sort = EnumSortZ3::new(&ctx, &x.t, x.d.iter().map(|x| x.as_str()).collect());
+                let elems = &sort.enum_asts;
+                let index = x.d.iter().position(|r| *r == y.to_string()).unwrap();
+                EQZ3::new(&ctx, EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", x.n.to_string(), step).as_str()), elems[index])
+            },
+            Predicate::EQVAR(x, y) => {
+                // TODO: check sorts before passing to Z3
+                let sort_1 = EnumSortZ3::new(&ctx, &x.t, x.d.iter().map(|x| x.as_str()).collect());
+                let sort_2 = EnumSortZ3::new(&ctx, &y.t, y.d.iter().map(|y| y.as_str()).collect());
+                let v_1 = EnumVarZ3::new(&ctx, sort_1.r, format!("{}_s{}", x.n.to_string(), step).as_str());
+                let v_2 = EnumVarZ3::new(&ctx, sort_2.r, format!("{}_s{}", y.n.to_string(), step).as_str());
+                EQZ3::new(&ctx, v_1, v_2)
+            },
+            Predicate::NEQVAL(x, y) => {
+                let sort = EnumSortZ3::new(&ctx, &x.t, x.d.iter().map(|x| x.as_str()).collect());
+                let elems = &sort.enum_asts;
+                let index = x.d.iter().position(|r| *r == y.to_string()).unwrap();
+                NEQZ3::new(&ctx, EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", x.n.to_string(), step).as_str()), elems[index])
+            },
+            Predicate::NEQVAR(x, y) => {
+                // TODO: check sorts before passing to Z3
+                let sort_1 = EnumSortZ3::new(&ctx, &x.t, x.d.iter().map(|x| x.as_str()).collect());
+                let sort_2 = EnumSortZ3::new(&ctx, &y.t, y.d.iter().map(|y| y.as_str()).collect());
+                let v_1 = EnumVarZ3::new(&ctx, sort_1.r, format!("{}_s{}", x.n.to_string(), step).as_str());
+                let v_2 = EnumVarZ3::new(&ctx, sort_2.r, format!("{}_s{}", y.n.to_string(), step).as_str());
+                NEQZ3::new(&ctx, v_1, v_2)
+            }
+        }
+    }
+}
+
 #[test]
 fn test_var(){
     let domain = vec!("home", "buffer", "table");
-    let mut v = Variable::new("robot_pose", "pose", domain);
+    let mut v = Variable::new("robot_pose", "pose", &domain);
     println!("{:?}", v);
     v.t = "blah".to_string();
     println!("{:?}", v);
@@ -149,22 +198,13 @@ fn test_coll(){
     let pose_domain = vec!("home", "buffer", "table");
     let status_domain = vec!("idle", "active");
 
-    let v1 = Variable::new("robot_pose", "pose", pose_domain);
-    let v2 = Variable::new("robot_status", "status", status_domain);
+    let v1 = Variable::new("robot_pose", "pose", &pose_domain);
+    let v2 = Variable::new("robot_status", "status", &status_domain);
 
     let a1 = Assignment::new(&v1, "home");
     let a2 = Assignment::new(&v2, "active");
 
     let initial_state = vec!(a1, a2);
-
-
-
-    // let mut eq3 = Predicate::EQ(
-    //     PredicateValue::SPValue(3.to_spvalue()),
-    //     PredicateValue::SPPath(ab.clone(), None),
-    // );
-    // let x = Predicate::AND(vec![eq, eq2]);
-    // let x = Predicate::OR(vec![x, eq3]);
 
     let pred = Predicate::AND(
         vec!(
@@ -173,9 +213,28 @@ fn test_coll(){
         )   
     );
 
-    // let initial_state = Collection::new(vec!(a1, a2));
-
     println!("{:?}", pred);
+}
+
+#[test]
+fn test_predicate(){
+    let pose_domain = vec!("home", "buffer", "table");
+    let status_domain = vec!("idle", "active");
+
+    let act_pos = Variable::new("act_pos", "pose", &pose_domain);
+    let ref_pos = Variable::new("ref_pos", "pose", &pose_domain);
+    let status = Variable::new("robot_status", "status", &status_domain);
+
+    let enabled = Predicate::AND(vec!(Predicate::EQVAR(act_pos.clone(), ref_pos.clone()), Predicate::EQVAL(status.clone(), String::from("active"))));
+
+    let mut step: u32 = 7;
+    
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
+
+    let z3_pred = PredicateToAstZ3::new(&ctx, &enabled, step);
+    println!("{}", ast_to_string_z3!(&ctx, z3_pred));
 }
 
 #[test]
@@ -183,9 +242,9 @@ fn test_problem(){
     let pose_domain = vec!("home", "buffer", "table");
     let status_domain = vec!("idle", "active");
 
-    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
-    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
-    let status = Variable::new("robot_status", "status", status_domain.clone());
+    let act_pos = Variable::new("act_pos", "pose", &pose_domain);
+    let ref_pos = Variable::new("ref_pos", "pose", &pose_domain);
+    let status = Variable::new("robot_status", "status", &status_domain);
 
     // let vars = Variables::new(&vec!(v1.clone(), ref_pos.clone(), v2.clone()));
     let vars = vec!(act_pos.clone(), status.clone());
@@ -216,7 +275,7 @@ fn test_problem(){
     let table_active = vec!(a7, a8);
     let table_idle = vec!(a9, a10);
 
-    let enabled = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
+    let enabled = Predicate::AND(vec!(Predicate::EQVAR(act_pos.clone(), ref_pos.clone()), Predicate::EQVAL(status.clone(), String::from("active"))));
     let executing = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
     let idle = Predicate::EQVAL(status, String::from("idle"));
 
@@ -227,12 +286,8 @@ fn test_problem(){
 
     let trans = vec!(t1, t2, t3, t4);
 
-    // let specs = Collection::new();
-
-    // let trans = Transitions::new(vec!(t1, t2, t3, t4));
-
-    // let problem = Problem::new(String::from("robot1"), vars, buffer_idle, table_idle, trans, 20);
-
+    let problem = PlanningProblem::new(String::from("robot1"), vars, buffer_idle, table_idle, trans, vec!(Predicate::TRUE), 20);
+    println!("{:?}", problem);
     // for t in problem.trans{
     //     println!("{:?}", t);
     // } 
