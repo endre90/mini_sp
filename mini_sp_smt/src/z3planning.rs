@@ -240,7 +240,8 @@ impl Sequential {
 
                 let mut all_trans = vec!();
                 for t in &p.trans {
-                    let name = &t.n;
+                    let name = format!("{}_t{}", &t.n, step);
+                    // let name = &t.n;
                     let guard = PredicateToAstZ3::new(&ctx, &t.g, step - 1);
                     let updates = PredicateToAstZ3::new(&ctx, &t.u, step);
 
@@ -459,6 +460,7 @@ fn test_problem(){
     let result = Sequential::new(&problem);
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
+    println!("time_to_solve: {:?}", result.time_to_solve);
     println!("trace: ");
     // 
     for t in result.trace{
