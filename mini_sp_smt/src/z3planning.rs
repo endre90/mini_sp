@@ -34,6 +34,7 @@ pub struct PlanningProblem {
     goal: Predicate,
     trans: Vec<Transition>,
     specs: Predicate,
+    ltl_specs: Predicate,
     max_steps: u32
 }
 
@@ -61,16 +62,24 @@ pub struct PlanningResult {
 pub enum Predicate {
     AND(Vec<Predicate>),
     OR(Vec<Predicate>),
-    NOT(Box<Predicate>),
+    NOT(Vec<Predicate>),
     EQVAL(Variable, String),
     NEQVAL(Variable, String),
     EQVAR(Variable, Variable),
     NEQVAR(Variable, Variable),
+    NEXT(Vec<Predicate>, Vec<Predicate>),
     TRUE,
     FALSE
 }
 
 pub struct PredicateToAstZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub pred: Predicate,
+    pub step: u32,
+    pub r: Z3_ast
+}
+
+pub struct UpdatePredicateToAstZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub pred: Predicate,
     pub step: u32,
@@ -123,6 +132,7 @@ impl PlanningProblem {
                goal: Predicate,
                trans: Vec<Transition>,
                specs: Predicate,
+               ltl_specs: Predicate,
                max_steps: u32) -> PlanningProblem {
         PlanningProblem {
             name: name.to_string(),
@@ -131,6 +141,7 @@ impl PlanningProblem {
             goal: goal,
             trans: trans,
             specs: specs,
+            ltl_specs: ltl_specs,
             max_steps: max_steps
         }
     }
@@ -161,7 +172,8 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
         match pred {
             Predicate::TRUE => BoolZ3::new(&ctx, true),
             Predicate::FALSE => BoolZ3::new(&ctx, false),
-            Predicate::NOT(p) => NOTZ3::new(&ctx, PredicateToAstZ3::new(&ctx, p, step)),
+            // Predicate::NOT(p) => NOTZ3::new(&ctx, PredicateToAstZ3::new(&ctx, p, step)),
+            Predicate::NOT(p) => ANDZ3::new(&ctx, p.iter().map(|x| NOTZ3::new(&ctx, PredicateToAstZ3::new(&ctx, x, step))).collect()),
             Predicate::AND(p) => ANDZ3::new(&ctx, p.iter().map(|x| PredicateToAstZ3::new(&ctx, x, step)).collect()),
             Predicate::OR(p) => ORZ3::new(&ctx, p.iter().map(|x| PredicateToAstZ3::new(&ctx, x, step)).collect()),
             Predicate::EQVAL(x, y) => {
@@ -191,7 +203,54 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                 let v_1 = EnumVarZ3::new(&ctx, sort_1.r, format!("{}_s{}", x.n.to_string(), step).as_str());
                 let v_2 = EnumVarZ3::new(&ctx, sort_2.r, format!("{}_s{}", y.n.to_string(), step).as_str());
                 NEQZ3::new(&ctx, v_1, v_2)
+            },
+            Predicate::NEXT(x, y) => {
+                ANDZ3::new(&ctx, vec!(
+                    ANDZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, step)).collect()),
+                    ANDZ3::new(&ctx, y.iter().map(|z| PredicateToAstZ3::new(&ctx, z, step + 1)).collect())
+                ))
             }
+        }
+    }
+}
+
+impl <'ctx> UpdatePredicateToAstZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, pred: &Predicate, step: u32) -> Z3_ast {
+        match pred {
+            Predicate::TRUE => BoolZ3::new(&ctx, true),
+            Predicate::FALSE => BoolZ3::new(&ctx, false),
+            Predicate::NOT(p) => ANDZ3::new(&ctx, p.iter().map(|x| NOTZ3::new(&ctx, UpdatePredicateToAstZ3::new(&ctx, x, step))).collect()),
+            Predicate::AND(p) => ANDZ3::new(&ctx, p.iter().map(|x| UpdatePredicateToAstZ3::new(&ctx, x, step)).collect()),
+            Predicate::OR(p) => ORZ3::new(&ctx, p.iter().map(|x| UpdatePredicateToAstZ3::new(&ctx, x, step)).collect()),
+            Predicate::EQVAL(x, y) => {
+                let sort = EnumSortZ3::new(&ctx, &x.t, x.d.iter().map(|x| x.as_str()).collect());
+                let elems = &sort.enum_asts;
+                let index = x.d.iter().position(|r| *r == y.to_string()).unwrap();
+                EQZ3::new(&ctx, EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", x.n.to_string(), step).as_str()), elems[index])
+            },
+            Predicate::EQVAR(x, y) => {
+                // TODO: check sorts before passing to Z3
+                let sort_1 = EnumSortZ3::new(&ctx, &x.t, x.d.iter().map(|x| x.as_str()).collect());
+                let sort_2 = EnumSortZ3::new(&ctx, &y.t, y.d.iter().map(|y| y.as_str()).collect());
+                let v_1 = EnumVarZ3::new(&ctx, sort_1.r, format!("{}_s{}", x.n.to_string(), step).as_str());
+                let v_2 = EnumVarZ3::new(&ctx, sort_2.r, format!("{}_s{}", y.n.to_string(), step - 1).as_str());
+                EQZ3::new(&ctx, v_1, v_2)
+            },
+            Predicate::NEQVAL(x, y) => {
+                let sort = EnumSortZ3::new(&ctx, &x.t, x.d.iter().map(|x| x.as_str()).collect());
+                let elems = &sort.enum_asts;
+                let index = x.d.iter().position(|r| *r == y.to_string()).unwrap();
+                NEQZ3::new(&ctx, EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", x.n.to_string(), step).as_str()), elems[index])
+            },
+            Predicate::NEQVAR(x, y) => {
+                // TODO: check sorts before passing to Z3
+                let sort_1 = EnumSortZ3::new(&ctx, &x.t, x.d.iter().map(|x| x.as_str()).collect());
+                let sort_2 = EnumSortZ3::new(&ctx, &y.t, y.d.iter().map(|y| y.as_str()).collect());
+                let v_1 = EnumVarZ3::new(&ctx, sort_1.r, format!("{}_s{}", x.n.to_string(), step).as_str());
+                let v_2 = EnumVarZ3::new(&ctx, sort_2.r, format!("{}_s{}", y.n.to_string(), step - 1).as_str());
+                NEQZ3::new(&ctx, v_1, v_2)
+            },
+            _ => panic!("implement")
         }
     }
 }
@@ -243,7 +302,7 @@ impl Sequential {
                     let name = format!("{}_t{}", &t.n, step);
                     // let name = &t.n;
                     let guard = PredicateToAstZ3::new(&ctx, &t.g, step - 1);
-                    let updates = PredicateToAstZ3::new(&ctx, &t.u, step);
+                    let updates = UpdatePredicateToAstZ3::new(&ctx, &t.u, step);
 
                     all_trans.push(ANDZ3::new(&ctx, 
                         vec!(EQZ3::new(&ctx, 
@@ -259,6 +318,7 @@ impl Sequential {
                 SlvPushZ3::new(&ctx, &slv);
 
                 let goal_state = PredicateToAstZ3::new(&ctx, &p.goal, step);
+                // slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step - 1));
                 slv_assert_z3!(&ctx, &slv, goal_state);
         
             } else {
@@ -408,8 +468,38 @@ fn test_initial_state(){
 }
 
 #[test]
+fn test_next(){
+
+    let pose_domain = vec!("home", "buffer", "table", "unknown");
+    let status_domain = vec!("idle", "active");
+
+    let act_pos = Variable::new("act_pos", "pose", &pose_domain);
+    let ref_pos = Variable::new("ref_pos", "pose", &pose_domain);
+    let status = Variable::new("robot_status", "status", &status_domain);
+
+    let a3 = Predicate::EQVAL(act_pos.clone(), String::from("buffer"));
+    let a4 = Predicate::EQVAL(status.clone(), String::from("active"));
+
+    // home activated state
+    let a5 = Predicate::EQVAL(act_pos.clone(), String::from("home"));
+    let a6 = Predicate::EQVAL(status.clone(), String::from("active"));
+
+    // let vars = Variables::new(&vec!(v1.clone(), ref_pos.clone(), v2.clone()));
+    let vars = vec!(act_pos.clone(), ref_pos.clone());
+
+    let buffer_active = Predicate::AND(vec!(a3, a4));
+    let home_active = Predicate::AND(vec!(a5, a6));
+
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
+    let specs = PredicateToAstZ3::new(&ctx, &Predicate::NEXT(vec!(buffer_active), vec!(home_active)), 0);
+    println!("{}", ast_to_string_z3!(&ctx, specs));
+}
+
+#[test]
 fn test_problem(){
-    let pose_domain = vec!("home", "buffer", "table");
+    let pose_domain = vec!("home", "buffer", "table", "unknown");
     let status_domain = vec!("idle", "active");
 
     let act_pos = Variable::new("act_pos", "pose", &pose_domain);
@@ -417,8 +507,9 @@ fn test_problem(){
     let status = Variable::new("robot_status", "status", &status_domain);
 
     // let vars = Variables::new(&vec!(v1.clone(), ref_pos.clone(), v2.clone()));
-    let vars = vec!(act_pos.clone(), status.clone());
+    let vars = vec!(act_pos.clone(), ref_pos.clone());
 
+    // have to enumerate all state combinations:
     // buffer idle state
     let a1 = Predicate::EQVAL(act_pos.clone(), String::from("buffer"));
     let a2 = Predicate::EQVAL(status.clone(), String::from("idle"));
@@ -455,8 +546,11 @@ fn test_problem(){
     let t4 = Transition::new("deactivate", &enabled, &table_idle);
 
     let trans = vec!(t1, t2, t3, t4);
+    // let specs = Predicate::NEXT(vec!(buffer_active), vec!(home_active));
+    let ltl_specs = Predicate::NEXT(vec!(buffer_active), vec!(home_active));
+    // let asdf = Predicate::NOT(vec!(table_active));
 
-    let problem = PlanningProblem::new(String::from("robot1"), vars, buffer_idle, table_idle, trans, Predicate::TRUE, 5);
+    let problem = PlanningProblem::new(String::from("robot1"), vars, buffer_idle, table_idle, trans, Predicate::TRUE, ltl_specs, 10);
     let result = Sequential::new(&problem);
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
