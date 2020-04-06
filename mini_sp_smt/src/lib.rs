@@ -45,4 +45,4 @@ pub use crate::z3planning::{Variable, Predicate, Transition, PlanningProblem, Pl
 //     SubParComputePlanSPModelZ3, PlanningFrameZ3, PlanningResultZ3, GetSPVarDomain};
 
 pub mod z3ltlf;
-pub use crate::z3ltlf::{NextZ3}; //UntilZ3, Until2Z3, AtLeastOnceZ3};
+pub use crate::z3ltlf::{GloballyZ3, NextZ3}; //UntilZ3, Until2Z3, AtLeastOnceZ3};

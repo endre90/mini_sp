@@ -10,6 +10,11 @@ pub struct NextZ3<'ctx> {
     pub y: Z3_ast
 }
 
+pub struct GloballyZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub x: Z3_ast
+}
+
 // pub struct UntilZ3<'ctx> {
 //     pub ctx: &'ctx ContextZ3,
 //     pub x: Z3_ast,
@@ -28,13 +33,37 @@ pub struct NextZ3<'ctx> {
 //     pub y: Z3_ast
 // }
 
-// impl <'ctx> NextZ3<'ctx> {
-//     pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, y: &Vec<Predicate>, step: u32) -> Z3_ast {
-//         let mut assert_vec = vec!();
-//         assert_vec.push(PredicateToAstZ3::new(&ctx, &Predicate::AND(*x), step));
-//         assert_vec.push(PredicateToAstZ3::new(&ctx, &Predicate::AND(*y), step + 1));
-//         ANDZ3::new(&ctx, assert_vec)
-//     }
+impl <'ctx> NextZ3<'ctx> {
+    pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, y: &Vec<Predicate>, step: u32) -> Z3_ast {
+        let mut assert_vec = vec!();
+        for s in 0..step + 1 {
+            assert_vec.push(ANDZ3::new(&ctx, vec!(
+                ANDZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, s)).collect()),
+                ANDZ3::new(&ctx, y.iter().map(|z| PredicateToAstZ3::new(&ctx, z, s + 1)).collect())
+            )))
+        }
+        ORZ3::new(&ctx, assert_vec)
+    }
+}
+
+impl <'ctx> GloballyZ3<'ctx> {
+    pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, step: u32) -> Z3_ast {
+        let mut assert_vec = vec!();
+        for s in 0..step + 1 {
+            assert_vec.push(
+                ANDZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, s)).collect())
+            )
+        }
+        ANDZ3::new(&ctx, assert_vec)
+    }
+}
+
+
+// Predicate::NEXT(x, y) => {
+//     ANDZ3::new(&ctx, vec!(
+//         ANDZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, step)).collect()),
+//         ANDZ3::new(&ctx, y.iter().map(|z| PredicateToAstZ3::new(&ctx, z, step + 1)).collect())
+//     ))
 // }
 
 // impl <'ctx> UntilZ3<'ctx> {
