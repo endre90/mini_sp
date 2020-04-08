@@ -410,29 +410,6 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
     }
 }
 
-// (and 
-//     (not 
-//         (and 
-//             (not (= act_pos_s0 ref_pos_s0)) (= act_stat_s0 idle))
-//         )
-//     (not 
-//         (and 
-//             (not (= act_pos_s1 ref_pos_s1)) (= act_stat_s1 idle))
-//         )
-//     (not 
-//         (or 
-//             (and 
-//                 (= act_pos_s0 buffer) 
-//                 (= act_pos_s1 table)
-//             )
-//             (and 
-//                 (= act_pos_s1 buffer) 
-//                 (= act_pos_s2 table)
-//             )
-//         )
-//     )
-// )
-
 #[test]
 fn test_model(){
     let pose_domain = vec!("buffer", "home", "table");
@@ -558,8 +535,22 @@ fn test_model(){
             )
         )
     );
+
+    // 2. has to go through the home pos (next is inherently global):
+    let s3 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+                )
+            )
+        )
+    );
     
-    let specs = Predicate::AND(vec!(s1, s2));
+    let specs = Predicate::AND(vec!(s1, s2, s3));
 
     // initial:
     let initial = Predicate::AND(
@@ -578,7 +569,7 @@ fn test_model(){
         )
     );
 
-    let problem = PlanningProblem::new(String::from("robot1"), vars, initial, goal, trans, specs, 10);
+    let problem = PlanningProblem::new(String::from("robot1"), vars, goal, initial, trans, specs, 10);
     let result = Sequential::new(&problem);
 
     println!("plan_found: {:?}", result.plan_found);
