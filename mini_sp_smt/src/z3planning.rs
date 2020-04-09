@@ -94,6 +94,12 @@ pub struct AssignmentToAstZ3<'ctx> {
 
 pub struct Sequential {}
 
+pub struct Compositional {}
+
+pub struct Abstract<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub r: Z3_ast
+}
 
 pub trait IterOps<T, I>: IntoIterator<Item = T>
     where I: IntoIterator<Item = T>,
@@ -329,8 +335,8 @@ impl Sequential {
                 SlvPushZ3::new(&ctx, &slv);
                 
                 let goal_state = PredicateToAstZ3::new(&ctx, &p.goal, step);
-                println!{"step: {:?}", step};
-                println!{"ltl spec: {}", ast_to_string_z3!(&ctx, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step))};
+                // println!{"step: {:?}", step};
+                // println!{"ltl spec: {}", ast_to_string_z3!(&ctx, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step))};
                 slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step));
                 slv_assert_z3!(&ctx, &slv, goal_state);
         
@@ -360,6 +366,67 @@ impl Sequential {
         }              
     }   
 }
+
+impl <'ctx> Abstract<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, v: &Vec<Variable>, p: &Predicate, step: u32) -> Z3_ast {
+
+        let predicate_ast = PredicateToAstZ3::new(&ctx, &p, step);
+        let cnf = GetCnfVectorZ3::new(&ctx, vec!(predicate_ast));
+        let mut filtered: Vec<Z3_ast> = vec!();
+
+        for a in cnf {
+            for var in v {
+                if ast_to_string_z3!(&ctx, a).contains(&var.n){
+                    filtered.push(a)
+                }
+            }
+        }
+        filtered.sort();
+        filtered.dedup();
+        ANDZ3::new(&ctx, filtered)
+    }
+}
+
+// impl Compositional {
+//     pub fn new(p: &PlanningProblem) -> PlanningResult {
+    
+//         let cfg = ConfigZ3::new();
+//         let ctx = ContextZ3::new(&cfg);
+//         let slv = SolverZ3::new(&ctx);
+
+//         let prob_vars = p.vars;
+//         let mut used_vars = vec!();
+//         let mut concat_var = 0;
+
+//         // for now just choose the next one, maybe will have to choose a group
+//         fn choose_var(pv: Vec<Variable>, uv: Vec<Variable>) -> Variable {
+//             let mut v: Variable;
+//             for var in pv {
+//                 if !uv.contains(&var) {
+//                     break
+//                 }
+//                 v = var;
+//             }
+//             v
+//         }
+
+//         used_vars.push(choose_var(prob_vars, used_vars));
+//         slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &used_vars, &p.initial);
+
+//         SlvPushZ3::new(&ctx, &slv); // create backtracking point
+//         let goal_state = PredicateToAstZ3::new(&ctx, &p.goal, 0);
+//         slv_assert_z3!(&ctx, &slv, goal_state);
+
+//         let now = Instant::now();
+//         let mut plan_found: bool = false;
+
+//         let mut step: u32 = 0;
+        
+
+
+
+//     }
+// }
 
 impl <'ctx> GetSPPlanningResultZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
@@ -411,7 +478,7 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
 }
 
 #[test]
-fn test_model_one_robot(){
+fn test_sequential_1(){
     let pose_domain = vec!("buffer", "home", "table");
     let stat_domain = vec!("active", "idle");
 
@@ -586,19 +653,28 @@ fn test_model_one_robot(){
 }
 
 #[test]
-fn test_model_one_robot_and_product(){
+fn test_sequential_2(){
     let pose_domain = vec!("buffer", "home", "table");
     let stat_domain = vec!("active", "idle");
     let buffer_domain = vec!("cube", "empty");
     let gripper_domain = vec!("cube", "empty");
     let table_domain = vec!("cube", "empty");
 
+    // var group 
     let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
     let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
+
+    // var group
     let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
     let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
+
+    // var group
     let buffer = Variable::new("buffer", "buffer", buffer_domain.clone());
+
+    // var group
     let gripper = Variable::new("gripper", "gripper", gripper_domain.clone());
+
+    // var group
     let table = Variable::new("table", "table", table_domain.clone());
 
     let vars = vec!(act_pos.clone(), ref_pos.clone(), act_stat.clone(), ref_stat.clone(),
@@ -913,5 +989,54 @@ fn test_model_one_robot_and_product(){
         println!("state: {:?}", t.state);
         println!("trans: {:?}", t.trans);
         println!("=========================");
-    } 
+    }
+}
+
+#[test]
+fn test_abstract(){
+    let pose_domain = vec!("buffer", "home", "table");
+    let stat_domain = vec!("active", "idle");
+    let buffer_domain = vec!("cube", "empty");
+    let gripper_domain = vec!("cube", "empty");
+    let table_domain = vec!("cube", "empty");
+
+    // var group 
+    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
+    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
+
+    // var group
+    let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
+    let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
+
+    // var group
+    let buffer = Variable::new("buffer", "buffer", buffer_domain.clone());
+    let gripper = Variable::new("gripper", "gripper", gripper_domain.clone());
+    let table = Variable::new("table", "table", table_domain.clone());
+
+    let vars = vec!(act_pos.clone(), ref_pos.clone(), act_stat.clone(), ref_stat.clone(),
+        buffer.clone(), gripper.clone(), table.clone());
+
+    let vars2 = vec!(act_pos.clone(), ref_pos.clone());
+
+    let move_enabled = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_enabled = Predicate::EQVAR(act_stat.clone(), ref_stat.clone());
+    let move_executing = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_executing = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
+
+    let move_and_stat = Predicate::AND(vec!(move_enabled, stat_enabled));
+
+    let cube_at_buffer = Predicate::EQVAL(buffer.clone(), String::from("cube"));
+    let cube_at_gripper = Predicate::EQVAL(gripper.clone(), String::from("cube"));
+    let cube_at_table = Predicate::EQVAL(table.clone(), String::from("cube"));
+
+    let buffer_empty = Predicate::EQVAL(buffer.clone(), String::from("empty"));
+    let gripper_empty = Predicate::EQVAL(gripper.clone(), String::from("empty"));
+    let table_empty = Predicate::EQVAL(table.clone(), String::from("empty"));
+
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
+
+    println!("original: {}", ast_to_string_z3!(&ctx, PredicateToAstZ3::new(&ctx, &move_and_stat, 0)));
+    println!("abstracted: {}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &vars2, &move_and_stat, 0)));
 }
