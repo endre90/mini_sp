@@ -94,6 +94,12 @@ pub struct AssignmentToAstZ3<'ctx> {
 
 pub struct Sequential {}
 
+pub struct Sequential2 {}
+
+pub struct LowLevelSequential<'ctx> {
+pub ctx: &'ctx ContextZ3
+}
+
 pub struct Compositional {}
 
 pub struct Abstract<'ctx> {
@@ -367,11 +373,80 @@ impl Sequential {
     }   
 }
 
-impl <'ctx> Abstract<'ctx> {
-    pub fn new(ctx: &'ctx ContextZ3, v: &Vec<Variable>, p: &Predicate, step: u32) -> Z3_ast {
+impl Sequential2 {
+    pub fn new(p: &PlanningProblem, vars: &Vec<Variable>) -> PlanningResult {
 
-        let predicate_ast = PredicateToAstZ3::new(&ctx, &p, step);
-        let cnf = GetCnfVectorZ3::new(&ctx, vec!(predicate_ast));
+        let cfg = ConfigZ3::new();
+        let ctx = ContextZ3::new(&cfg);
+        let slv = SolverZ3::new(&ctx);
+    
+        slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &p.initial, 0)));
+
+        SlvPushZ3::new(&ctx, &slv); // create backtracking point
+        slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &p.goal, 0)));
+
+        let now = Instant::now();
+        let mut plan_found: bool = false;
+
+        let mut step: u32 = 0;
+
+        while step < p.max_steps + 1 {
+            step = step + 1;
+            if SlvCheckZ3::new(&ctx, &slv) != 1 {
+                SlvPopZ3::new(&ctx, &slv, 1);
+
+                let mut all_trans = vec!();
+                for t in &p.trans {
+                    let name = format!("{}_t{}", &t.n, step);
+                    let guard = Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &t.g, step - 1));
+                    let updates = Abstract::new(&ctx, &vars, UpdatePredicateToAstZ3::new(&ctx, &t.u, step));
+                    let keeps = Abstract::new(&ctx, &vars, KeepVariableValues::new(&ctx, &p.vars, t, step));
+
+                    all_trans.push(ANDZ3::new(&ctx, 
+                        vec!(EQZ3::new(&ctx, 
+                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), name.as_str()), 
+                            BoolZ3::new(&ctx, true)),
+                        guard, updates, keeps)));
+                }
+
+                slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
+                
+                SlvPushZ3::new(&ctx, &slv);
+                slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step)));
+                slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &p.goal, step)));
+        
+            } else {
+                plan_found = true;
+                break;
+            }
+        }
+
+        let planning_time = now.elapsed();
+
+        let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
+        let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
+        let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
+        // for a in cnf {
+        //     println!("{}", ast_to_string_z3!(&ctx, a))
+        // }
+        
+        if plan_found == true {
+            let model = SlvGetModelZ3::new(&ctx, &slv);
+            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        } else {
+            let model = FreshModelZ3::new(&ctx);
+            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        }              
+    }   
+}
+
+impl <'ctx> Abstract<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, v: &Vec<Variable>, p: Z3_ast) -> Z3_ast {
+
+        // let predicate_ast = PredicateToAstZ3::new(&ctx, &p, step);
+        let cnf = GetCnfVectorZ3::new(&ctx, vec!(p));
         let mut filtered: Vec<Z3_ast> = vec!();
 
         for a in cnf {
@@ -411,20 +486,16 @@ impl <'ctx> Abstract<'ctx> {
 //         }
 
 //         used_vars.push(choose_var(prob_vars, used_vars));
-//         slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &used_vars, &p.initial);
+//         slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &used_vars, &p.initial, 0));
 
 //         SlvPushZ3::new(&ctx, &slv); // create backtracking point
-//         let goal_state = PredicateToAstZ3::new(&ctx, &p.goal, 0);
-//         slv_assert_z3!(&ctx, &slv, goal_state);
+//         slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &used_vars, &p.goal, 0));
 
 //         let now = Instant::now();
 //         let mut plan_found: bool = false;
 
 //         let mut step: u32 = 0;
-        
-
-
-
+    
 //     }
 // }
 
@@ -961,6 +1032,7 @@ fn test_sequential_2(){
     let initial = Predicate::AND(
         vec!(
             Predicate::EQVAL(ref_stat.clone(), String::from("idle")),
+            Predicate::EQVAL(ref_pos.clone(), String::from("buffer")), 
             Predicate::EQVAL(act_pos.clone(), String::from("buffer")), 
             Predicate::EQVAL(act_stat.clone(), String::from("idle")),
             Predicate::EQVAL(table.clone(), String::from("cube"))
@@ -979,6 +1051,9 @@ fn test_sequential_2(){
     let problem = PlanningProblem::new(String::from("robot1"), vars, initial, goal, trans, specs, 20);
     let result = Sequential::new(&problem);
 
+    let vars2 = vec!(act_pos.clone(), ref_pos.clone());
+    let result2 = Sequential2::new(&problem, &vars2);
+
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
     println!("time_to_solve: {:?}", result.time_to_solve);
@@ -988,6 +1063,18 @@ fn test_sequential_2(){
         
         println!("state: {:?}", t.state);
         println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("plan_found2: {:?}", result2.plan_found);
+    println!("plan_lenght2: {:?}", result2.plan_length);
+    println!("time_to_solve2: {:?}", result2.time_to_solve);
+    println!("trace2: ");
+    // 
+    for t in result2.trace{
+        
+        println!("state2: {:?}", t.state);
+        println!("trans2: {:?}", t.trans);
         println!("=========================");
     }
 }
@@ -1038,5 +1125,5 @@ fn test_abstract(){
     let slv = SolverZ3::new(&ctx);
 
     println!("original: {}", ast_to_string_z3!(&ctx, PredicateToAstZ3::new(&ctx, &move_and_stat, 0)));
-    println!("abstracted: {}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &vars2, &move_and_stat, 0)));
+    println!("abstracted: {}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &vars2, PredicateToAstZ3::new(&ctx, &move_and_stat, 0))));
 }
