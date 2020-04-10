@@ -96,6 +96,8 @@ pub struct Sequential {}
 
 pub struct GenerateProblems {}
 
+pub struct StateToPredicate {}
+
 pub struct LowLevelSequential<'ctx> {
 pub ctx: &'ctx ContextZ3
 }
@@ -388,18 +390,66 @@ impl <'ctx> Abstract<'ctx> {
     }
 }
 
-impl GenerateProblems {
-    pub fn new(r: &PlanningResult, p: &PlanningProblem, uv: &Vec<Variable>) -> () { //Vec<PlanningProblem> {
-        let mut new_problems: Vec<PlanningProblem> = vec!();
-        for i in 0..r.trace.len() - 1 {
-            let init = &r.trace[i].state;
-            let goal = &r.trace[i + 1].state;
-            println!("init: {:?}", init);
-            println!("goal: {:?}", goal);
-        }
-        // for s in r.trace {
+// name: String,
+//     vars: Vec<Variable>,
+//     initial: Predicate,
+//     goal: Predicate,
+//     trans: Vec<Transition>,
+//     ltl_specs: Predicate,
+//     max_steps: u32
 
-        // }
+// let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
+
+impl StateToPredicate {
+    pub fn new(state: &Vec<&str>, p: &PlanningProblem) -> Predicate {
+        let mut and_vec: Vec<Predicate> = vec!();
+        for s in state {
+            let sep: Vec<&str> = s.split(" -> ").collect();
+            let mut d: Vec<&str> = vec!();
+            let mut t: &str = "";
+            let mut n: &str = "";
+            for v in &p.vars {
+                if v.n == sep[0] {
+                    n = sep[0];
+                    d = v.d.iter().map(|x| x.as_str()).collect();
+                    t = &v.t;
+                }
+            }
+
+            let var = Variable::new(n, t, d);
+            let val = sep[1];
+
+            and_vec.push(Predicate::EQVAL(var, String::from(val)));
+        }
+        Predicate::AND(and_vec)
+    }
+}
+
+impl GenerateProblems {
+    pub fn new(r: &PlanningResult, p: &PlanningProblem, uv: &Vec<Variable>) -> Vec<PlanningProblem> {
+        let mut new_problems: Vec<PlanningProblem> = vec!();
+        let mut init: Predicate = Predicate::TRUE;
+        let mut goal: Predicate = Predicate::TRUE;
+        
+        for i in 0..r.trace.len() - 1 {
+            
+            if i == 0 {
+                init = p.initial.clone();
+            } else {
+                init = StateToPredicate::new(&r.trace[i].state.iter().map(|x| x.as_str()).collect(), &p);
+            }
+
+            if i == r.trace.len() - 1 {
+                goal = p.goal.clone();
+            } else {
+                goal = StateToPredicate::new(&r.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &p);
+            }
+
+            new_problems.push(
+                PlanningProblem::new(String::from("some"), uv.clone(), init, goal, p.trans.clone(), p.ltl_specs.clone(), p.max_steps)
+            )
+        }
+        new_problems
     }
 }
 
@@ -1008,10 +1058,10 @@ fn test_sequential_2(){
     let vars2 = vec!(act_pos.clone(), ref_pos.clone());
     let result2 = Sequential::new(&problem, &vars2);
 
-    println!("plan_found: {:?}", result.plan_found);
-    println!("plan_lenght: {:?}", result.plan_length);
-    println!("time_to_solve: {:?}", result.time_to_solve);
-    println!("trace: ");
+    // println!("plan_found: {:?}", result.plan_found);
+    // println!("plan_lenght: {:?}", result.plan_length);
+    // println!("time_to_solve: {:?}", result.time_to_solve);
+    // println!("trace: ");
     // 
     // for t in result.trace{
         
@@ -1034,7 +1084,11 @@ fn test_sequential_2(){
     // }
 
     let probs = GenerateProblems::new(&result2, &problem, &vars2);
-    println!("{:?}", probs);
+    for p in probs {
+        println!("init : {:?}", p.initial);
+        println!("goal : {:?}", p.goal);
+    }
+    // println!("{:?}", probs);
 
 }
 
