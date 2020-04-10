@@ -388,11 +388,20 @@ impl <'ctx> Abstract<'ctx> {
     }
 }
 
-// impl GenerateProblems {
-//     pub fn new(&PlanningResult) -> Vec<PlanningProblem> {
+impl GenerateProblems {
+    pub fn new(r: &PlanningResult, p: &PlanningProblem, uv: &Vec<Variable>) -> () { //Vec<PlanningProblem> {
+        let mut new_problems: Vec<PlanningProblem> = vec!();
+        for i in 0..r.trace.len() - 1 {
+            let init = &r.trace[i].state;
+            let goal = &r.trace[i + 1].state;
+            println!("init: {:?}", init);
+            println!("goal: {:?}", goal);
+        }
+        // for s in r.trace {
 
-//     }
-// }
+        // }
+    }
+}
 
 // impl Compositional {
 //     pub fn new(p: &PlanningProblem) -> PlanningResult {
@@ -414,6 +423,17 @@ impl <'ctx> Abstract<'ctx> {
 //         }
 
 //         used_vars.push(choose_var(prob_vars, used_vars));
+//         let level0_plan0 = Sequential::new(&p, &used_vars);
+//         if level0_plan0.plan_found == true {
+//             if p.vars.len() != used_vars.len() {
+//                 used_vars.push(choose_var(prob_vars, used_vars));
+
+//             } else {
+//                 level0_plan0
+//             }
+//         } else {
+//             level0_plan0
+//         }
 
 //         // fn aprc(p: &PlanningProblem, uv: Vec<Variable>) -> PlanningResult {
 //         //     let subres = Sequential2::new(&p, &uv);
@@ -993,24 +1013,29 @@ fn test_sequential_2(){
     println!("time_to_solve: {:?}", result.time_to_solve);
     println!("trace: ");
     // 
-    for t in result.trace{
+    // for t in result.trace{
         
-        println!("state: {:?}", t.state);
-        println!("trans: {:?}", t.trans);
-        println!("=========================");
-    }
+    //     println!("state: {:?}", t.state);
+    //     println!("trans: {:?}", t.trans);
+    //     println!("=========================");
+    // }
 
-    println!("plan_found2: {:?}", result2.plan_found);
-    println!("plan_lenght2: {:?}", result2.plan_length);
-    println!("time_to_solve2: {:?}", result2.time_to_solve);
-    println!("trace2: ");
+    // println!("plan_found2: {:?}", result2.plan_found);
+    // println!("plan_lenght2: {:?}", result2.plan_length);
+    // println!("time_to_solve2: {:?}", result2.time_to_solve);
+    // println!("trace2: ");
     // 
-    for t in result2.trace{
+    // let re2cl = result2.clone();
+    // for t in re2cl.trace{
         
-        println!("state2: {:?}", t.state);
-        println!("trans2: {:?}", t.trans);
-        println!("=========================");
-    }
+    //     println!("state2: {:?}", t.state);
+    //     println!("trans2: {:?}", t.trans);
+    //     println!("=========================");
+    // }
+
+    let probs = GenerateProblems::new(&result2, &problem, &vars2);
+    println!("{:?}", probs);
+
 }
 
 #[test]
