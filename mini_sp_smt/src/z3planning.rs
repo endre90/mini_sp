@@ -94,7 +94,7 @@ pub struct AssignmentToAstZ3<'ctx> {
 
 pub struct Sequential {}
 
-pub struct Sequential2 {}
+pub struct GenerateProblems {}
 
 pub struct LowLevelSequential<'ctx> {
 pub ctx: &'ctx ContextZ3
@@ -296,84 +296,6 @@ impl <'ctx> KeepVariableValues<'ctx> {
 }
 
 impl Sequential {
-    pub fn new(p: &PlanningProblem) -> PlanningResult {
-    
-        let cfg = ConfigZ3::new();
-        let ctx = ContextZ3::new(&cfg);
-        let slv = SolverZ3::new(&ctx);
-    
-        // slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.specs, 0));
-        
-        let initial_state = PredicateToAstZ3::new(&ctx, &p.initial, 0);
-        slv_assert_z3!(&ctx, &slv, initial_state);
-
-        SlvPushZ3::new(&ctx, &slv); // create backtracking point
-        let goal_state = PredicateToAstZ3::new(&ctx, &p.goal, 0);
-        slv_assert_z3!(&ctx, &slv, goal_state);
-
-        let now = Instant::now();
-        let mut plan_found: bool = false;
-
-        let mut step: u32 = 0;
-
-        while step < p.max_steps + 1 {
-            step = step + 1;
-            if SlvCheckZ3::new(&ctx, &slv) != 1 {
-                SlvPopZ3::new(&ctx, &slv, 1);
-
-                let mut all_trans = vec!();
-                for t in &p.trans {
-                    let name = format!("{}_t{}", &t.n, step);
-                    // let name = &t.n;
-                    let guard = PredicateToAstZ3::new(&ctx, &t.g, step - 1);
-                    let updates = UpdatePredicateToAstZ3::new(&ctx, &t.u, step);
-                    let keeps = KeepVariableValues::new(&ctx, &p.vars, t, step);
-
-                    all_trans.push(ANDZ3::new(&ctx, 
-                        vec!(EQZ3::new(&ctx, 
-                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), name.as_str()), 
-                            BoolZ3::new(&ctx, true)),
-                        guard, updates, keeps)));
-                }
-
-                slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
-                
-                SlvPushZ3::new(&ctx, &slv);
-                
-                let goal_state = PredicateToAstZ3::new(&ctx, &p.goal, step);
-                // println!{"step: {:?}", step};
-                // println!{"ltl spec: {}", ast_to_string_z3!(&ctx, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step))};
-                slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step));
-                slv_assert_z3!(&ctx, &slv, goal_state);
-        
-            } else {
-                plan_found = true;
-                break;
-            }
-        }
-
-        let planning_time = now.elapsed();
-
-        let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
-        let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
-        let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
-        // for a in cnf {
-        //     println!("{}", ast_to_string_z3!(&ctx, a))
-        // }
-        
-        if plan_found == true {
-            let model = SlvGetModelZ3::new(&ctx, &slv);
-            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
-            result
-        } else {
-            let model = FreshModelZ3::new(&ctx);
-            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
-            result
-        }              
-    }   
-}
-
-impl Sequential2 {
     pub fn new(p: &PlanningProblem, vars: &Vec<Variable>) -> PlanningResult {
 
         let cfg = ConfigZ3::new();
@@ -413,6 +335,7 @@ impl Sequential2 {
                 
                 SlvPushZ3::new(&ctx, &slv);
                 slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step)));
+                // slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step));
                 slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &p.goal, step)));
         
             } else {
@@ -445,29 +368,34 @@ impl Sequential2 {
 impl <'ctx> Abstract<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, v: &Vec<Variable>, p: Z3_ast) -> Z3_ast {
 
-        // let predicate_ast = PredicateToAstZ3::new(&ctx, &p, step);
-        let cnf = GetCnfVectorZ3::new(&ctx, vec!(p));
-        let mut filtered: Vec<Z3_ast> = vec!();
+        if v.len() != 0 {
+            let cnf = GetCnfVectorZ3::new(&ctx, vec!(p));
+            let mut filtered: Vec<Z3_ast> = vec!();
 
-        for a in cnf {
-            for var in v {
-                if ast_to_string_z3!(&ctx, a).contains(&var.n){
-                    filtered.push(a)
+            for a in cnf {
+                for var in v {
+                    if ast_to_string_z3!(&ctx, a).contains(&var.n){
+                        filtered.push(a)
+                    }
                 }
             }
+            filtered.sort();
+            filtered.dedup();
+            ANDZ3::new(&ctx, filtered)
+        } else {
+            p
         }
-        filtered.sort();
-        filtered.dedup();
-        ANDZ3::new(&ctx, filtered)
     }
 }
 
+// impl GenerateProblems {
+//     pub fn new(&PlanningResult) -> Vec<PlanningProblem> {
+
+//     }
+// }
+
 // impl Compositional {
 //     pub fn new(p: &PlanningProblem) -> PlanningResult {
-    
-//         let cfg = ConfigZ3::new();
-//         let ctx = ContextZ3::new(&cfg);
-//         let slv = SolverZ3::new(&ctx);
 
 //         let prob_vars = p.vars;
 //         let mut used_vars = vec!();
@@ -486,15 +414,21 @@ impl <'ctx> Abstract<'ctx> {
 //         }
 
 //         used_vars.push(choose_var(prob_vars, used_vars));
-//         slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &used_vars, &p.initial, 0));
 
-//         SlvPushZ3::new(&ctx, &slv); // create backtracking point
-//         slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &used_vars, &p.goal, 0));
+//         // fn aprc(p: &PlanningProblem, uv: Vec<Variable>) -> PlanningResult {
+//         //     let subres = Sequential2::new(&p, &uv);
+//         //     if p.vars.len() != uv.len() {
+//         //         if subres.plan_found == false {
+//         //             used_vars.push(choose_var(prob_vars, used_vars));
+//         //             aprc(&p, &used_vars)
+//         //         } else {
+//         //             used_vars.push(choose_var(prob_vars, used_vars));
+//         //             let new_problems: Vec<PlanningProblem> = vec!();
+                    
+//         //         }
 
-//         let now = Instant::now();
-//         let mut plan_found: bool = false;
-
-//         let mut step: u32 = 0;
+//         //     }
+//         // }
     
 //     }
 // }
@@ -708,7 +642,7 @@ fn test_sequential_1(){
     );
 
     let problem = PlanningProblem::new(String::from("robot1"), vars, goal, initial, trans, specs, 10);
-    let result = Sequential::new(&problem);
+    let result = Sequential::new(&problem, &vec!());
 
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
@@ -1049,10 +983,10 @@ fn test_sequential_2(){
     );
 
     let problem = PlanningProblem::new(String::from("robot1"), vars, initial, goal, trans, specs, 20);
-    let result = Sequential::new(&problem);
+    let result = Sequential::new(&problem, &vec!());
 
     let vars2 = vec!(act_pos.clone(), ref_pos.clone());
-    let result2 = Sequential2::new(&problem, &vars2);
+    let result2 = Sequential::new(&problem, &vars2);
 
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
