@@ -62,6 +62,7 @@ pub enum Predicate {
     EQVAR(Variable, Variable),
     NEQVAR(Variable, Variable),
     NEXT(Vec<Predicate>, Vec<Predicate>),
+    AFTER(Vec<Predicate>, Vec<Predicate>),
     GLOB(Vec<Predicate>),
     TRUE,
     FALSE
@@ -238,6 +239,7 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                 NEQZ3::new(&ctx, v_1, v_2)
             },
             Predicate::NEXT(x, y) => NextZ3::new(&ctx, &x, &y, step),
+            Predicate::AFTER(x, y) => AfterZ3::new(&ctx, &x, &y, step),
             Predicate::GLOB(x) => GloballyZ3::new(&ctx, &x, step)
         }
     }
@@ -771,6 +773,11 @@ fn test_sequential_2(){
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 
     // ltl specs (real ugly, need some macros):
+
+    // 0. Have to have an invariant something like act follows ref or something like that
+    // act after ref for example or then ref before act! can "sometime after" be used here
+
+
     // 1. can't move if not active:
     let s1 = Predicate::GLOB(
         vec!(
@@ -793,18 +800,18 @@ fn test_sequential_2(){
     );
 
     // 2a. has to go through the home pos (next is inherently global):
-    let s2 = Predicate::NOT(
-        vec!(
-            Predicate::NEXT(
-                vec!(
-                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
-                ), 
-                vec!(
-                    Predicate::EQVAL(ref_pos.clone(), String::from("table"))
-                )
-            )
-        )
-    );
+    // let s2 = Predicate::NOT(
+    //     vec!(
+    //         Predicate::NEXT(
+    //             vec!(
+    //                 Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //             ), 
+    //             vec!(
+    //                 Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+    //             )
+    //         )
+    //     )
+    // );
 
     // 2b. has to go through the home pos (next is inherently global):
     let s3 = Predicate::NOT(
@@ -820,22 +827,35 @@ fn test_sequential_2(){
         )
     );
 
+    // let s4 = Predicate::NOT(
+    //     vec!(
+    //         Predicate::NEXT(
+    //             vec!(
+    //                 Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+    //             ), 
+    //             vec!(
+    //                 Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+    //             )
+    //         )
+    //     )
+    // );
+
     // 2c. has to go through the home pos (next is inherently global):
-    let s4 = Predicate::NOT(
-        vec!(
-            Predicate::NEXT(
-                vec!(
-                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
-                ), 
-                vec!(
-                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
-                )
-            )
-        )
-    );
+    // let s5 = Predicate::NOT(
+    //     vec!(
+    //         Predicate::NEXT(
+    //             vec!(
+    //                 Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //             ), 
+    //             vec!(
+    //                 Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+    //             )
+    //         )
+    //     )
+    // );
 
     // 2d. has to go through the home pos (next is inherently global):
-    let s5 = Predicate::NOT(
+    let s6 = Predicate::NOT(
         vec!(
             Predicate::NEXT(
                 vec!(
@@ -848,8 +868,26 @@ fn test_sequential_2(){
         )
     );
 
+    // let s7 = Predicate::NOT(
+    //     vec!(
+    //         Predicate::NEXT(
+    //             vec!(
+    //                 Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+    //             ), 
+    //             vec!(
+    //                 Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+    //             )
+    //         )
+    //     )
+    // );
+
+    // after is inherently global
+    // let s8 = Predicate::AFTER(
+
+    // )
+
     // 3. there is only one cube in the system (implement pbeq in the future):
-    let s6 = Predicate::GLOB(
+    let s8 = Predicate::GLOB(
         vec!(
             Predicate::OR(
                 vec!(
@@ -889,7 +927,8 @@ fn test_sequential_2(){
     
     
     
-    let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s6));
+    // let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s6, s7, s8));
+    let specs = Predicate::AND(vec!(s1, s3, s6, s8));
 
     // initial:
     let initial = Predicate::AND(
@@ -917,7 +956,7 @@ fn test_sequential_2(){
     let vars3 = vec!(act_stat.clone());
     let vars4 = vec!(ref_stat.clone());
     let vars2 = vec!(act_pos.clone(), ref_pos.clone());
-    let result2 = Sequential::new(&problem, &vars3);
+    let result2 = Sequential::new(&problem, &vars2);
 
     // println!("plan_found: {:?}", result.plan_found);
     // println!("plan_lenght: {:?}", result.plan_length);
@@ -950,4 +989,57 @@ fn test_sequential_2(){
     }
     // println!("{:?}", probs);
 
+}
+
+#[test]
+fn test_after(){
+    let pose_domain = vec!("buffer", "home", "table");
+    let stat_domain = vec!("active", "idle");
+    let buffer_domain = vec!("cube", "empty");
+    let gripper_domain = vec!("cube", "empty");
+    let table_domain = vec!("cube", "empty");
+
+    // var group 
+    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
+    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
+
+    // var group
+    let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
+    let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
+
+    // var group
+    let buffer = Variable::new("buffer", "buffer", buffer_domain.clone());
+    let gripper = Variable::new("gripper", "gripper", gripper_domain.clone());
+    let table = Variable::new("table", "table", table_domain.clone());
+
+    let vars = vec!(act_pos.clone(), ref_pos.clone(), act_stat.clone(), ref_stat.clone(),
+        buffer.clone(), gripper.clone(), table.clone());
+
+    let vars2 = vec!(act_pos.clone(), ref_pos.clone());
+
+    let move_enabled = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_enabled = Predicate::EQVAR(act_stat.clone(), ref_stat.clone());
+    let move_executing = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_executing = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
+
+    let move_and_stat = Predicate::AND(vec!(move_enabled, stat_enabled));
+
+    let cube_at_buffer = Predicate::EQVAL(buffer.clone(), String::from("cube"));
+    let cube_at_gripper = Predicate::EQVAL(gripper.clone(), String::from("cube"));
+    let cube_at_table = Predicate::EQVAL(table.clone(), String::from("cube"));
+
+    let buffer_empty = Predicate::EQVAL(buffer.clone(), String::from("empty"));
+    let gripper_empty = Predicate::EQVAL(gripper.clone(), String::from("empty"));
+    let table_empty = Predicate::EQVAL(table.clone(), String::from("empty"));
+
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
+
+    let after = AfterZ3::new(&ctx, &vec!(cube_at_buffer), &vec!(cube_at_gripper), 7);
+
+    println!("{}", ast_to_string_z3!(&ctx, after));
+
+    // println!("original: {}", ast_to_string_z3!(&ctx, PredicateToAstZ3::new(&ctx, &move_and_stat, 0)));
+    // println!("abstracted: {}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &vars2, PredicateToAstZ3::new(&ctx, &move_and_stat, 0))));
 }
