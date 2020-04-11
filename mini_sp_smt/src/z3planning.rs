@@ -109,6 +109,8 @@ pub struct Abstract<'ctx> {
     pub r: Z3_ast
 }
 
+pub struct Refine {}
+
 pub trait IterOps<T, I>: IntoIterator<Item = T>
     where I: IntoIterator<Item = T>,
           T: PartialEq {
@@ -367,6 +369,7 @@ impl Sequential {
     }   
 }
 
+// convert an ast formula (predicate) to cnf and remove clauses that don't contain any variable from the filtering vector
 impl <'ctx> Abstract<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, v: &Vec<Variable>, p: Z3_ast) -> Z3_ast {
 
@@ -389,6 +392,26 @@ impl <'ctx> Abstract<'ctx> {
         }
     }
 }
+
+// refine a predicate by ANDing it with a vector of variables that have values from the original problem
+// this ia basically applied to init, goal and invariants
+// does this have to be done on the z3 level because od the to_cnf function? yes, then its
+// basically going to be the abstract but with a bigger abstraction vector
+// impl Refine {
+//     pub fn new(predicate: &Predicate,
+//                old_vector: &Vec<Variable>, 
+//                refinement_vector: &Vec<Variable>, 
+//                original_problem: &PlanningProblem) -> Predicate {
+
+//                    let mut refinement = vec!();
+//                     for r_var in refinement_vector {
+//                         if !old_vector.contains(r_var) {
+//                             refinement.push(r_var);
+//                         }
+//                     }
+//                 Predicate::AND(refinement.push(predicate))
+//                }
+// }
 
 // name: String,
 //     vars: Vec<Variable>,
@@ -425,29 +448,40 @@ impl StateToPredicate {
     }
 }
 
+// generates unrefined problems that are trivial to solve
+// refinement comes later in the lower levels
 impl GenerateProblems {
     pub fn new(r: &PlanningResult, p: &PlanningProblem, uv: &Vec<Variable>) -> Vec<PlanningProblem> {
         let mut new_problems: Vec<PlanningProblem> = vec!();
-        let mut init: Predicate = Predicate::TRUE;
-        let mut goal: Predicate = Predicate::TRUE;
-        
-        for i in 0..r.trace.len() - 1 {
-            
-            if i == 0 {
-                init = p.initial.clone();
-            } else {
-                init = StateToPredicate::new(&r.trace[i].state.iter().map(|x| x.as_str()).collect(), &p);
-            }
 
-            if i == r.trace.len() - 1 {
-                goal = p.goal.clone();
-            } else {
-                goal = StateToPredicate::new(&r.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &p);
+        match r.plan_found {
+            false => panic!("No plan at GenerateProblems::new"),
+            true => match r.plan_length == 0 {
+                false => {
+                    for i in 0..r.trace.len() - 1 {
+                        new_problems.push(
+                            PlanningProblem::new(
+                                String::from("some"), 
+                                uv.clone(), 
+                                StateToPredicate::new(&r.trace[i].state.iter().map(|x| x.as_str()).collect(), &p),
+                                StateToPredicate::new(&r.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &p),
+                                p.trans.clone(),
+                                p.ltl_specs.clone(),
+                                p.max_steps)
+                        )
+                    }
+                },
+                true => new_problems.push(
+                    PlanningProblem::new(
+                        String::from("some"), 
+                        uv.clone(), 
+                        StateToPredicate::new(&r.trace[0].state.iter().map(|x| x.as_str()).collect(), &p),
+                        StateToPredicate::new(&r.trace[0].state.iter().map(|x| x.as_str()).collect(), &p),
+                        p.trans.clone(),
+                        p.ltl_specs.clone(),
+                        p.max_steps)
+                )
             }
-
-            new_problems.push(
-                PlanningProblem::new(String::from("some"), uv.clone(), init, goal, p.trans.clone(), p.ltl_specs.clone(), p.max_steps)
-            )
         }
         new_problems
     }
@@ -550,181 +584,6 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
             time_to_solve: planning_time,
         }
     }
-}
-
-#[test]
-fn test_sequential_1(){
-    let pose_domain = vec!("buffer", "home", "table");
-    let stat_domain = vec!("active", "idle");
-
-    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
-    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
-    let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
-    let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
-
-    let vars = vec!(act_pos.clone(), ref_pos.clone(), act_stat.clone(), ref_stat.clone());
-
-    let move_enabled = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
-    let stat_enabled = Predicate::EQVAR(act_stat.clone(), ref_stat.clone());
-    let move_executing = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
-    let stat_executing = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
-
-    // model, actually will have to generate this
-    let t1 = Transition::new(
-        "start_activate", 
-        vec!(ref_stat.clone()), 
-        &stat_enabled,
-        &Predicate::EQVAL(ref_stat.clone(), String::from("active"))
-    );
-
-    let t2 = Transition::new(
-        "finish_activate", 
-        vec!(act_stat.clone()), 
-        &stat_executing,
-        &Predicate::EQVAL(act_stat.clone(), String::from("active"))
-    );
-
-    let t3 = Transition::new(
-        "start_deactivate", 
-        vec!(ref_stat.clone()), 
-        &stat_enabled,
-        &Predicate::EQVAL(ref_stat.clone(), String::from("idle"))
-    );
-    
-    let t4 = Transition::new(
-        "finish_deactivate", 
-        vec!(act_stat.clone()), 
-        &stat_executing,
-        &Predicate::EQVAL(act_stat.clone(), String::from("idle"))
-    );
-
-    let t5 = Transition::new(
-        "start_move_to_buffer",
-        vec!(ref_pos.clone()),
-        &move_enabled,
-        &Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
-    );
-
-    let t6 = Transition::new(
-        "finish_move_to_buffer",
-        vec!(act_pos.clone()),
-        &move_executing,
-        &Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
-    );
-
-    let t7 = Transition::new(
-        "start_move_to_home",
-        vec!(ref_pos.clone()),
-        &move_enabled,
-        &Predicate::EQVAL(ref_pos.clone(), String::from("home"))
-    );
-
-    let t8 = Transition::new(
-        "finish_move_to_home",
-        vec!(act_pos.clone()),
-        &move_executing,
-        &Predicate::EQVAL(act_pos.clone(), String::from("home"))
-    );
-
-    let t9 = Transition::new(
-        "start_move_to_table",
-        vec!(ref_pos.clone()),
-        &move_enabled,
-        &Predicate::EQVAL(ref_pos.clone(), String::from("table"))
-    );
-
-    let t10 = Transition::new(
-        "finish_move_to_table",
-        vec!(act_pos.clone()),
-        &move_executing,
-        &Predicate::EQVAL(act_pos.clone(), String::from("table"))
-    );
-
-    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10);
-
-    // ltl specs (real ugly, need some macros):
-    // 1. can't move if not active:
-    let s1 = Predicate::GLOB(
-        vec!(
-            Predicate::NOT(
-                vec!(
-                    Predicate::AND(
-                        vec!(
-                            Predicate::NEQVAR(act_pos.clone(), ref_pos.clone()),
-                            Predicate::OR(
-                                vec!(
-                                    Predicate::EQVAL(act_stat.clone(), String::from("idle")),
-                                    Predicate::EQVAL(ref_stat.clone(), String::from("idle"))
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    );
-
-    // 2. has to go through the home pos (next is inherently global):
-    let s2 = Predicate::NOT(
-        vec!(
-            Predicate::NEXT(
-                vec!(
-                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
-                ), 
-                vec!(
-                    Predicate::EQVAL(ref_pos.clone(), String::from("table"))
-                )
-            )
-        )
-    );
-
-    // 2. has to go through the home pos (next is inherently global):
-    let s3 = Predicate::NOT(
-        vec!(
-            Predicate::NEXT(
-                vec!(
-                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
-                ), 
-                vec!(
-                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
-                )
-            )
-        )
-    );
-    
-    let specs = Predicate::AND(vec!(s1, s2, s3));
-
-    // initial:
-    let initial = Predicate::AND(
-        vec!(
-            Predicate::EQVAL(ref_stat.clone(), String::from("idle")),
-            Predicate::EQVAL(act_pos.clone(), String::from("buffer")), 
-            Predicate::EQVAL(act_stat.clone(), String::from("idle"))
-        )
-    );
-
-    // goal:
-    let goal = Predicate::AND(
-        vec!(
-            Predicate::EQVAL(act_pos.clone(), String::from("table")), 
-            Predicate::EQVAL(act_stat.clone(), String::from("idle"))
-        )
-    );
-
-    let problem = PlanningProblem::new(String::from("robot1"), vars, goal, initial, trans, specs, 10);
-    let result = Sequential::new(&problem, &vec!());
-
-    println!("plan_found: {:?}", result.plan_found);
-    println!("plan_lenght: {:?}", result.plan_length);
-    println!("time_to_solve: {:?}", result.time_to_solve);
-    println!("trace: ");
-    // 
-    for t in result.trace{
-        
-        println!("state: {:?}", t.state);
-        println!("trans: {:?}", t.trans);
-        println!("=========================");
-    } 
 }
 
 #[test]
@@ -1055,8 +914,10 @@ fn test_sequential_2(){
     let problem = PlanningProblem::new(String::from("robot1"), vars, initial, goal, trans, specs, 20);
     let result = Sequential::new(&problem, &vec!());
 
+    let vars3 = vec!(act_stat.clone());
+    let vars4 = vec!(ref_stat.clone());
     let vars2 = vec!(act_pos.clone(), ref_pos.clone());
-    let result2 = Sequential::new(&problem, &vars2);
+    let result2 = Sequential::new(&problem, &vars3);
 
     // println!("plan_found: {:?}", result.plan_found);
     // println!("plan_lenght: {:?}", result.plan_length);
@@ -1070,73 +931,23 @@ fn test_sequential_2(){
     //     println!("=========================");
     // }
 
-    // println!("plan_found2: {:?}", result2.plan_found);
-    // println!("plan_lenght2: {:?}", result2.plan_length);
-    // println!("time_to_solve2: {:?}", result2.time_to_solve);
-    // println!("trace2: ");
-    // 
-    // let re2cl = result2.clone();
-    // for t in re2cl.trace{
+    println!("plan_found2: {:?}", result2.plan_found);
+    println!("plan_lenght2: {:?}", result2.plan_length);
+    println!("time_to_solve2: {:?}", result2.time_to_solve);
+    println!("trace2: ");
+    
+    for t in &result2.trace{
         
-    //     println!("state2: {:?}", t.state);
-    //     println!("trans2: {:?}", t.trans);
-    //     println!("=========================");
-    // }
+        println!("state2: {:?}", t.state);
+        println!("trans2: {:?}", t.trans);
+        println!("=========================");
+    }
 
-    let probs = GenerateProblems::new(&result2, &problem, &vars2);
-    for p in probs {
+    let probs = GenerateProblems::new(&result2, &problem, &vars4);
+    for p in &probs {
         println!("init : {:?}", p.initial);
         println!("goal : {:?}", p.goal);
     }
     // println!("{:?}", probs);
 
-}
-
-#[test]
-fn test_abstract(){
-    let pose_domain = vec!("buffer", "home", "table");
-    let stat_domain = vec!("active", "idle");
-    let buffer_domain = vec!("cube", "empty");
-    let gripper_domain = vec!("cube", "empty");
-    let table_domain = vec!("cube", "empty");
-
-    // var group 
-    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
-    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
-
-    // var group
-    let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
-    let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
-
-    // var group
-    let buffer = Variable::new("buffer", "buffer", buffer_domain.clone());
-    let gripper = Variable::new("gripper", "gripper", gripper_domain.clone());
-    let table = Variable::new("table", "table", table_domain.clone());
-
-    let vars = vec!(act_pos.clone(), ref_pos.clone(), act_stat.clone(), ref_stat.clone(),
-        buffer.clone(), gripper.clone(), table.clone());
-
-    let vars2 = vec!(act_pos.clone(), ref_pos.clone());
-
-    let move_enabled = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
-    let stat_enabled = Predicate::EQVAR(act_stat.clone(), ref_stat.clone());
-    let move_executing = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
-    let stat_executing = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
-
-    let move_and_stat = Predicate::AND(vec!(move_enabled, stat_enabled));
-
-    let cube_at_buffer = Predicate::EQVAL(buffer.clone(), String::from("cube"));
-    let cube_at_gripper = Predicate::EQVAL(gripper.clone(), String::from("cube"));
-    let cube_at_table = Predicate::EQVAL(table.clone(), String::from("cube"));
-
-    let buffer_empty = Predicate::EQVAL(buffer.clone(), String::from("empty"));
-    let gripper_empty = Predicate::EQVAL(gripper.clone(), String::from("empty"));
-    let table_empty = Predicate::EQVAL(table.clone(), String::from("empty"));
-
-    let cfg = ConfigZ3::new();
-    let ctx = ContextZ3::new(&cfg);
-    let slv = SolverZ3::new(&ctx);
-
-    println!("original: {}", ast_to_string_z3!(&ctx, PredicateToAstZ3::new(&ctx, &move_and_stat, 0)));
-    println!("abstracted: {}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &vars2, PredicateToAstZ3::new(&ctx, &move_and_stat, 0))));
 }
