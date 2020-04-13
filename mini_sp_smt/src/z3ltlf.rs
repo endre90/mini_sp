@@ -39,6 +39,7 @@ pub struct GloballyZ3<'ctx> {
 //     pub y: Z3_ast
 // }
 
+// chronological order
 impl <'ctx> NextZ3<'ctx> {
     pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, y: &Vec<Predicate>, step: u32) -> Z3_ast {
         let mut assert_vec = vec!();
