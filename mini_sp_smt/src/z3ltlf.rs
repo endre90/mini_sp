@@ -40,6 +40,23 @@ pub struct GloballyZ3<'ctx> {
 // }
 
 // chronological order
+impl <'ctx> AfterZ3<'ctx> {
+    pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, y: &Vec<Predicate>, many: u32, step: u32) -> Z3_ast {
+        let mut assert_vec = vec!();
+        for m in 1..many + 1 {
+            assert_vec.push(
+                ANDZ3::new(&ctx, y.iter().map(|z| PredicateToAstZ3::new(&ctx, z, step + m)).collect())
+            )
+        }
+        ANDZ3::new(&ctx, vec!(
+            ANDZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, step)).collect()),
+            ORZ3::new(&ctx, assert_vec)
+            )
+        )
+    }
+}
+
+// chronological order
 impl <'ctx> NextZ3<'ctx> {
     pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, y: &Vec<Predicate>, step: u32) -> Z3_ast {
         let mut assert_vec = vec!();
@@ -53,27 +70,27 @@ impl <'ctx> NextZ3<'ctx> {
     }
 }
 
-impl <'ctx> AfterZ3<'ctx> {
-    pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, y: &Vec<Predicate>, step: u32) -> Z3_ast {
-        let mut assert_vec: Vec<Z3_ast> = vec!();
+// impl <'ctx> AfterZ3<'ctx> {
+//     pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, y: &Vec<Predicate>, step: u32) -> Z3_ast {
+//         let mut assert_vec: Vec<Z3_ast> = vec!();
         
-        match step == 0 {
-            true => panic!("Can't have A after B in 0 steps"),
-            false => {
-                for s in 0..step {
-                    let leader = ANDZ3::new(&ctx, y.iter().map(|z| PredicateToAstZ3::new(&ctx, z, s)).collect());
-                    let mut follower_vec: Vec<Z3_ast> = vec!();
-                    for f in s + 1..step + 1 {
-                        follower_vec.push(ANDZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, f)).collect()))
-                    }
-                    let follower = ORZ3::new(&ctx, follower_vec.clone());
-                    assert_vec.push(ANDZ3::new(&ctx, vec!(leader, follower)));
-                }
-                ORZ3::new(&ctx, assert_vec)
-            }
-        }
-    }
-}
+//         match step == 0 {
+//             true => panic!("Can't have A after B in 0 steps"),
+//             false => {
+//                 for s in 0..step {
+//                     let leader = ANDZ3::new(&ctx, y.iter().map(|z| PredicateToAstZ3::new(&ctx, z, s)).collect());
+//                     let mut follower_vec: Vec<Z3_ast> = vec!();
+//                     for f in s + 1..step + 1 {
+//                         follower_vec.push(ANDZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, f)).collect()))
+//                     }
+//                     let follower = ORZ3::new(&ctx, follower_vec.clone());
+//                     assert_vec.push(ANDZ3::new(&ctx, vec!(leader, follower)));
+//                 }
+//                 ORZ3::new(&ctx, assert_vec)
+//             }
+//         }
+//     }
+// }
 
 impl <'ctx> GloballyZ3<'ctx> {
     pub fn new(ctx: &ContextZ3, x: &Vec<Predicate>, step: u32) -> Z3_ast {
