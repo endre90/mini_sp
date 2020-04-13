@@ -68,6 +68,12 @@ pub struct XORZ3<'ctx> {
     pub r: Z3_ast
 }
 
+pub struct PBEQZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub args: Vec<Z3_ast>,
+    pub r: Z3_ast
+}
+
 impl<'ctx> ANDZ3<'ctx> {
     /// Create an AST node representing `args[0] and ... and args[num_args-1]`.
     ///
@@ -228,6 +234,24 @@ impl<'ctx> XORZ3<'ctx> {
             Z3_mk_xor(ctx.r, left, right)
         };
         XORZ3 {ctx, left, right, r: z3}.r  
+    }
+}
+
+impl<'ctx> PBEQZ3<'ctx> {
+    /// Pseudo-Boolean equality relation.
+    /// 
+    /// Coeffs taken as 1.
+    /// 
+    /// Encode k1*p1 + k2*p2 + ... + kn*pn = k
+    /// 
+    /// NOTE: See macro! `pbeq_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>, sum: i32) -> Z3_ast {
+        let args_slice = &args;
+        let coeffs_slice = &vec![1; args_slice.len()];
+        let z3 = unsafe {
+            Z3_mk_pbeq(ctx.r, args_slice.len() as u32, args_slice.as_ptr(), coeffs_slice.as_ptr(), sum)
+        };
+        PBEQZ3{ctx, r: z3, args}.r   
     }
 }
 
@@ -641,6 +665,36 @@ fn test_new_ntrue_2(){
     let ntrue1 = NTRUEZ3::new(&ctx, vec!(), vec!(x1, x2, x3, x4, x5, x6));
 
     assert_eq!("(and (not x1) (not x2) (not x3) (not x4) (not x5) (not x6))", ast_to_string_z3!(&ctx, ntrue1));
+}
+
+#[test]
+fn test_new_pbeq(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let slv = SolverZ3::new(&ctx);
+    let boolsort = BoolSortZ3::new(&ctx);
+
+    let x1 = BoolVarZ3::new(&ctx, &boolsort, "x1");
+    let x2 = BoolVarZ3::new(&ctx, &boolsort, "x2");
+    let x3 = BoolVarZ3::new(&ctx, &boolsort, "x3");
+    let x4 = BoolVarZ3::new(&ctx, &boolsort, "x4");
+    let x5 = BoolVarZ3::new(&ctx, &boolsort, "x5");
+    let x6 = BoolVarZ3::new(&ctx, &boolsort, "x6");
+
+    let ntrue1 = PBEQZ3::new(&ctx, vec!(x1, x2, x3, x4, x5, x6), 2);
+
+    slv_assert_z3!(&ctx, &slv, ntrue1);
+
+    // let res1 = slv_check_z3!(&ctx, &slv);
+
+    let models = SlvGetAllModelsZ3::new(&ctx, &slv);
+    for model in models.s {
+        println!("{}", model);
+    }
+
+    // let model = slv_get_model_z3!(&ctx, &slv);
+    // println!("{}", model_to_string_z3!(&ctx, model));
+
 }
 
 #[test]

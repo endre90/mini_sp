@@ -94,6 +94,7 @@ pub struct AssignmentToAstZ3<'ctx> {
 }
 
 pub struct Sequential {}
+pub struct Sequential2 {}
 
 pub struct GenerateProblems {}
 
@@ -106,6 +107,11 @@ pub ctx: &'ctx ContextZ3
 pub struct Compositional {}
 
 pub struct Abstract<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub r: Z3_ast
+}
+
+pub struct AbstractHard<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub r: Z3_ast
 }
@@ -371,21 +377,100 @@ impl Sequential {
     }   
 }
 
-// convert an ast formula (predicate) to cnf and remove clauses that don't contain any variable from the filtering vector
-impl <'ctx> Abstract<'ctx> {
-    pub fn new(ctx: &'ctx ContextZ3, v: &Vec<Variable>, p: Z3_ast) -> Z3_ast {
+impl Sequential2 {
+    pub fn new(p: &PlanningProblem, vars: &Vec<Variable>) -> PlanningResult {
 
-        if v.len() != 0 {
+        let cfg = ConfigZ3::new();
+        let ctx = ContextZ3::new(&cfg);
+        let slv = SolverZ3::new(&ctx);
+    
+        let rem_v =  IterOps::difference(p.vars.clone(), vars.clone());
+
+        slv_assert_z3!(&ctx, &slv, AbstractHard::new(&ctx, &rem_v, PredicateToAstZ3::new(&ctx, &p.initial, 0)));
+
+        SlvPushZ3::new(&ctx, &slv); // create backtracking point
+        slv_assert_z3!(&ctx, &slv, AbstractHard::new(&ctx, &rem_v, PredicateToAstZ3::new(&ctx, &p.goal, 0)));
+
+        let now = Instant::now();
+        let mut plan_found: bool = false;
+
+        let mut step: u32 = 0;
+
+        while step < p.max_steps + 1 {
+            step = step + 1;
+            if SlvCheckZ3::new(&ctx, &slv) != 1 {
+                SlvPopZ3::new(&ctx, &slv, 1);
+
+                let mut all_trans = vec!();
+                for t in &p.trans {
+                    let name = format!("{}_t{}", &t.n, step);
+                    let guard = AbstractHard::new(&ctx, &rem_v, PredicateToAstZ3::new(&ctx, &t.g, step - 1));
+                    let updates = AbstractHard::new(&ctx, &rem_v, UpdatePredicateToAstZ3::new(&ctx, &t.u, step));
+                    let keeps = AbstractHard::new(&ctx, &rem_v, KeepVariableValues::new(&ctx, &p.vars, t, step));
+
+                    all_trans.push(ANDZ3::new(&ctx, 
+                        vec!(EQZ3::new(&ctx, 
+                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), name.as_str()), 
+                            BoolZ3::new(&ctx, true)),
+                        guard, updates, keeps)));
+                }
+
+                slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
+                
+                SlvPushZ3::new(&ctx, &slv);
+                slv_assert_z3!(&ctx, &slv, AbstractHard::new(&ctx, &rem_v, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step)));
+                // slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step));
+                slv_assert_z3!(&ctx, &slv, AbstractHard::new(&ctx, &rem_v, PredicateToAstZ3::new(&ctx, &p.goal, step)));
+        
+            } else {
+                plan_found = true;
+                break;
+            }
+        }
+
+        let planning_time = now.elapsed();
+
+        // let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
+        // let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
+        // let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
+        // for a in cnf {
+        //     println!("{}", ast_to_string_z3!(&ctx, a))
+        // }
+        
+        if plan_found == true {
+            let model = SlvGetModelZ3::new(&ctx, &slv);
+            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        } else {
+            let model = FreshModelZ3::new(&ctx);
+            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        }              
+    }   
+}
+
+// convert an ast formula (predicate) to cnf and remove clauses that don't contain any variable from the filtering vector
+
+impl <'ctx> Abstract<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, keep_v: &Vec<Variable>, p: Z3_ast) -> Z3_ast {
+
+        if keep_v.len() != 0 {
             let cnf = GetCnfVectorZ3::new(&ctx, vec!(p));
             let mut filtered: Vec<Z3_ast> = vec!();
 
             for a in cnf {
-                for var in v {
-                    if ast_to_string_z3!(&ctx, a).contains(&var.n){
-                        filtered.push(a)
-                    }
+                if keep_v.iter().any(|x| ast_to_string_z3!(&ctx, a).contains(&x.n)) {
+                    filtered.push(a)
                 }
             }
+
+            // for a in cnf {
+            //     for var in keep_v {
+            //         if ast_to_string_z3!(&ctx, a).contains(&var.n){
+            //             filtered.push(a)
+            //         }
+            //     }
+            // }
             filtered.sort();
             filtered.dedup();
             ANDZ3::new(&ctx, filtered)
@@ -395,35 +480,28 @@ impl <'ctx> Abstract<'ctx> {
     }
 }
 
-// refine a predicate by ANDing it with a vector of variables that have values from the original problem
-// this ia basically applied to init, goal and invariants
-// does this have to be done on the z3 level because od the to_cnf function? yes, then its
-// basically going to be the abstract but with a bigger abstraction vector
-// impl Refine {
-//     pub fn new(predicate: &Predicate,
-//                old_vector: &Vec<Variable>, 
-//                refinement_vector: &Vec<Variable>, 
-//                original_problem: &PlanningProblem) -> Predicate {
+// convert an ast formula (predicate) to cnf and remove clauses that contain variables in the filtering vector
+impl <'ctx> AbstractHard<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, rem_v: &Vec<Variable>, p: Z3_ast) -> Z3_ast {
 
-//                    let mut refinement = vec!();
-//                     for r_var in refinement_vector {
-//                         if !old_vector.contains(r_var) {
-//                             refinement.push(r_var);
-//                         }
-//                     }
-//                 Predicate::AND(refinement.push(predicate))
-//                }
-// }
+        if rem_v.len() != 0 {
+            let cnf = GetCnfVectorZ3::new(&ctx, vec!(p));
+            let mut filtered: Vec<Z3_ast> = vec!();
 
-// name: String,
-//     vars: Vec<Variable>,
-//     initial: Predicate,
-//     goal: Predicate,
-//     trans: Vec<Transition>,
-//     ltl_specs: Predicate,
-//     max_steps: u32
+            for a in cnf {
+                if !rem_v.iter().any(|x| ast_to_string_z3!(&ctx, a).contains(&x.n)) {
+                    filtered.push(a)
+                }
+            }
 
-// let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
+            filtered.sort();
+            filtered.dedup();
+            ANDZ3::new(&ctx, filtered)
+        } else {
+            p
+        }
+    }
+}
 
 impl StateToPredicate {
     pub fn new(state: &Vec<&str>, p: &PlanningProblem) -> Predicate {
@@ -554,7 +632,7 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
             i = i + 1;
         }
 
-        println!("{:#?}", model_vec);
+        // println!("{:#?}", model_vec);
 
         let mut trace: Vec<PlanningFrame> = vec!();
         
@@ -613,7 +691,7 @@ fn test_sequential_2(){
     // var group
     let table = Variable::new("table", "table", table_domain.clone());
 
-    let vars = vec!(act_pos.clone(), ref_pos.clone(), act_stat.clone(), ref_stat.clone(),
+    let all_vars = vec!(act_pos.clone(), ref_pos.clone(), act_stat.clone(), ref_stat.clone(),
         buffer.clone(), gripper.clone(), table.clone());
 
     let move_enabled = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
@@ -701,7 +779,54 @@ fn test_sequential_2(){
         &Predicate::EQVAL(act_pos.clone(), String::from("table"))
     );
 
-    // moving the cube
+    
+
+    //moving the cube new
+    // let t11 = Transition::new(
+    //     "take_cube_from_table",
+    //     vec!(gripper.clone(), table.clone()),
+    //     &cube_at_table,
+    //     &Predicate::AND(
+    //         vec!(
+    //             cube_at_gripper.clone(), table_empty.clone()
+    //         )
+    //     )
+    // );
+
+    // let t12 = Transition::new(
+    //     "take_cube_from_buffer",
+    //     vec!(gripper.clone(), buffer.clone()),
+    //     &cube_at_buffer,
+    //     &Predicate::AND(
+    //         vec!(
+    //             cube_at_gripper.clone(), buffer_empty.clone()
+    //         )
+    //     )
+    // );
+
+    // let t13 = Transition::new(
+    //     "leave_at_table",
+    //     vec!(table.clone(), gripper.clone()),
+    //     &cube_at_gripper,
+    //     &Predicate::AND(
+    //         vec!(
+    //             cube_at_table.clone(), gripper_empty.clone()
+    //         )
+    //     )
+    // );
+
+    // let t14 = Transition::new(
+    //     "leave_at_buffer",
+    //     vec!(buffer.clone(), gripper.clone()),
+    //     &cube_at_gripper,
+    //     &Predicate::AND(
+    //         vec!(
+    //             cube_at_buffer.clone(), gripper_empty.clone()
+    //         )
+    //     )
+    // );
+
+    // moving the cube old
     let t11 = Transition::new(
         "take_cube_from_table",
         vec!(gripper.clone(), table.clone()),
@@ -799,63 +924,35 @@ fn test_sequential_2(){
         )
     );
 
-    // 2a. has to go through the home pos (next is inherently global):
-    // let s2 = Predicate::NOT(
-    //     vec!(
-    //         Predicate::NEXT(
-    //             vec!(
-    //                 Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
-    //             ), 
-    //             vec!(
-    //                 Predicate::EQVAL(ref_pos.clone(), String::from("table"))
-    //             )
-    //         )
-    //     )
-    // );
-
-    // 2b. has to go through the home pos (next is inherently global):
-    let s3 = Predicate::NOT(
+    let s4 = Predicate::NOT(
         vec!(
             Predicate::NEXT(
                 vec!(
-                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
                 ), 
                 vec!(
-                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                    Predicate::EQVAL(ref_pos.clone(), String::from("table"))
                 )
             )
         )
     );
-
-    // let s4 = Predicate::NOT(
-    //     vec!(
-    //         Predicate::NEXT(
-    //             vec!(
-    //                 Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
-    //             ), 
-    //             vec!(
-    //                 Predicate::EQVAL(ref_pos.clone(), String::from("table"))
-    //             )
-    //         )
-    //     )
-    // );
 
     // 2c. has to go through the home pos (next is inherently global):
-    // let s5 = Predicate::NOT(
-    //     vec!(
-    //         Predicate::NEXT(
-    //             vec!(
-    //                 Predicate::EQVAL(act_pos.clone(), String::from("table"))
-    //             ), 
-    //             vec!(
-    //                 Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
-    //             )
-    //         )
-    //     )
-    // );
+    let se1 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+                )
+            )
+        )
+    );
 
     // 2d. has to go through the home pos (next is inherently global):
-    let s6 = Predicate::NOT(
+    let se2 = Predicate::NOT(
         vec!(
             Predicate::NEXT(
                 vec!(
@@ -868,23 +965,48 @@ fn test_sequential_2(){
         )
     );
 
-    // let s7 = Predicate::NOT(
-    //     vec!(
-    //         Predicate::NEXT(
-    //             vec!(
-    //                 Predicate::EQVAL(ref_pos.clone(), String::from("table"))
-    //             ), 
-    //             vec!(
-    //                 Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
-    //             )
-    //         )
-    //     )
-    // );
+     // 2a. has to go through the home pos (next is inherently global):
+    let se3 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+                )
+            )
+        )
+    );
 
-    // after is inherently global
-    // let s8 = Predicate::AFTER(
+    // 2b. has to go through the home pos (next is inherently global):
+    let se4 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                )
+            )
+        )
+    );
 
-    // )
+    let s7 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+                )
+            )
+        )
+    );
+
+    
 
     // 3. there is only one cube in the system (implement pbeq in the future):
     let s8 = Predicate::GLOB(
@@ -917,18 +1039,38 @@ fn test_sequential_2(){
         )
     );
 
-    // 4. item can be taken/left only when robot is there:
-    // actually, its easier just to add it in the trans guards
-    // let s5 = Predicate::GLOB(
-    //     vec!(
+    // after is inherently global
+    let s9 = Predicate::AFTER(
+        vec!(
+            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+        ),
+        vec!(
+            Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+        )
+    );
 
-    //     )
-    // );
+    let s10 = Predicate::AFTER(
+        vec!(
+            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+        ),
+        vec!(
+            Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+        )
+    );
+
+    let s11 = Predicate::AFTER(
+        vec!(
+            Predicate::EQVAL(act_pos.clone(), String::from("home"))
+        ),
+        vec!(
+            Predicate::EQVAL(ref_pos.clone(), String::from("home"))
+        )
+    );
     
     
     
     // let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s6, s7, s8));
-    let specs = Predicate::AND(vec!(s1, s3, s6, s8));
+    let specs = Predicate::AND(vec!(s1, s4, s7, s8, s9, s10, s11, se1, se2, se3, se4));
 
     // initial:
     let initial = Predicate::AND(
@@ -941,54 +1083,135 @@ fn test_sequential_2(){
         )
     );
 
+    
+
     // goal:
     let goal = Predicate::AND(
         vec!(
             Predicate::EQVAL(act_pos.clone(), String::from("table")), 
-            Predicate::EQVAL(act_stat.clone(), String::from("idle")),
+            Predicate::EQVAL(act_stat.clone(), String::from("active")),
             Predicate::EQVAL(buffer.clone(), String::from("cube"))
         )
     );
 
-    let problem = PlanningProblem::new(String::from("robot1"), vars, initial, goal, trans, specs, 20);
-    let result = Sequential::new(&problem, &vec!());
+    let problem = PlanningProblem::new(String::from("robot1"), all_vars, initial, goal, trans, specs, 20);
+    // let result = Sequential::new(&problem, &vec!());
 
-    let vars3 = vec!(act_stat.clone());
-    let vars4 = vec!(ref_stat.clone());
-    let vars2 = vec!(act_pos.clone(), ref_pos.clone());
-    let result2 = Sequential::new(&problem, &vars2);
+    let pos_vars = vec!(act_pos.clone(), ref_pos.clone());
+    let stat_vars = vec!(act_stat.clone(), ref_stat.clone());
+    let cube_vars = vec!(buffer.clone(), gripper.clone(), table.clone());
+    let soft_result_full = Sequential::new(&problem, &vec!());
+    let soft_result_pos = Sequential::new(&problem, &pos_vars);
+    let soft_result_stat = Sequential::new(&problem, &stat_vars);
+    let soft_result_cube = Sequential::new(&problem, &cube_vars);
+    let hard_result_full = Sequential2::new(&problem, &vec!());
+    let hard_result_pos = Sequential2::new(&problem, &pos_vars);
+    let hard_result_stat = Sequential2::new(&problem, &stat_vars);
+    let hard_result_cube = Sequential2::new(&problem, &cube_vars);
 
-    // println!("plan_found: {:?}", result.plan_found);
-    // println!("plan_lenght: {:?}", result.plan_length);
-    // println!("time_to_solve: {:?}", result.time_to_solve);
-    // println!("trace: ");
-    // 
-    // for t in result.trace{
-        
-    //     println!("state: {:?}", t.state);
-    //     println!("trans: {:?}", t.trans);
-    //     println!("=========================");
-    // }
-
-    println!("plan_found2: {:?}", result2.plan_found);
-    println!("plan_lenght2: {:?}", result2.plan_length);
-    println!("time_to_solve2: {:?}", result2.time_to_solve);
-    println!("trace2: ");
+    println!("soft_plan_found_full: {:?}", soft_result_full.plan_found);
+    println!("soft_plan_lenght_full: {:?}", soft_result_full.plan_length);
+    println!("soft_time_to_solve_full: {:?}", soft_result_full.time_to_solve);
+    println!("soft_trace_full: ");
     
-    for t in &result2.trace{
+    for t in &soft_result_full.trace{
         
-        println!("state2: {:?}", t.state);
-        println!("trans2: {:?}", t.trans);
+        println!("soft_state_full: {:?}", t.state);
+        println!("soft_trans_full: {:?}", t.trans);
         println!("=========================");
     }
 
-    let probs = GenerateProblems::new(&result2, &problem, &vars4);
-    for p in &probs {
-        println!("init : {:?}", p.initial);
-        println!("goal : {:?}", p.goal);
+    println!("hard_plan_found_full: {:?}", hard_result_full.plan_found);
+    println!("hard_plan_lenght_full: {:?}", hard_result_full.plan_length);
+    println!("hard_time_to_solve_full: {:?}", hard_result_full.time_to_solve);
+    println!("hard_trace_full: ");
+    
+    for t in &hard_result_full.trace{
+        
+        println!("hard_state_full: {:?}", t.state);
+        println!("hard_trans_full: {:?}", t.trans);
+        println!("=========================");
     }
-    // println!("{:?}", probs);
 
+    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+
+    println!("soft_plan_found_pos: {:?}", soft_result_pos.plan_found);
+    println!("soft_plan_lenght_pos: {:?}", soft_result_pos.plan_length);
+    println!("soft_time_to_solve_pos: {:?}", soft_result_pos.time_to_solve);
+    println!("soft_trace_pos: ");
+    
+    for t in &soft_result_pos.trace{
+        
+        println!("soft_state_pos: {:?}", t.state);
+        println!("soft_trans_pos: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("hard_plan_found_pos: {:?}", hard_result_pos.plan_found);
+    println!("hard_plan_lenght_pos: {:?}", hard_result_pos.plan_length);
+    println!("hard_time_to_solve_pos: {:?}", hard_result_pos.time_to_solve);
+    println!("hard_trace_pos: ");
+    
+    for t in &hard_result_pos.trace{
+        
+        println!("hard_state_pos: {:?}", t.state);
+        println!("hard_trans_pos: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+
+    println!("soft_plan_found_stat: {:?}", soft_result_stat.plan_found);
+    println!("soft_plan_lenght_stat: {:?}", soft_result_stat.plan_length);
+    println!("soft_time_to_solve_stat: {:?}", soft_result_stat.time_to_solve);
+    println!("soft_trace_stat: ");
+    
+    for t in &soft_result_stat.trace{
+        
+        println!("soft_state_stat: {:?}", t.state);
+        println!("soft_trans_stat: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("hard_plan_found_stat: {:?}", hard_result_stat.plan_found);
+    println!("hard_plan_lenght_stat: {:?}", hard_result_stat.plan_length);
+    println!("hard_time_to_solve_stat: {:?}", hard_result_stat.time_to_solve);
+    println!("hard_trace_stat: ");
+    
+    for t in &hard_result_stat.trace{
+        
+        println!("hard_state_stat: {:?}", t.state);
+        println!("hard_trans_stat: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+
+    println!("soft_plan_found_cube: {:?}", soft_result_cube.plan_found);
+    println!("soft_plan_lenght_cube: {:?}", soft_result_cube.plan_length);
+    println!("soft_time_to_solve_cube: {:?}", soft_result_cube.time_to_solve);
+    println!("soft_trace_cube: ");
+    
+    for t in &soft_result_cube.trace{
+        
+        println!("soft_state_cube: {:?}", t.state);
+        println!("soft_trans_cube: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("hard_plan_found_cube: {:?}", hard_result_cube.plan_found);
+    println!("hard_plan_lenght_cube: {:?}", hard_result_cube.plan_length);
+    println!("hard_time_to_solve_cube: {:?}", hard_result_cube.time_to_solve);
+    println!("hard_trace_cube: ");
+    
+    for t in &hard_result_cube.trace{
+        
+        println!("hard_state_cube: {:?}", t.state);
+        println!("hard_trans_cube: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 }
 
 #[test]
@@ -1022,7 +1245,7 @@ fn test_after(){
     let move_executing = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
     let stat_executing = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
 
-    let move_and_stat = Predicate::AND(vec!(move_enabled, stat_enabled));
+    // let move_and_stat = Predicate::AND(vec!(move_enabled, stat_enabled));
 
     let cube_at_buffer = Predicate::EQVAL(buffer.clone(), String::from("cube"));
     let cube_at_gripper = Predicate::EQVAL(gripper.clone(), String::from("cube"));
@@ -1036,10 +1259,484 @@ fn test_after(){
     let ctx = ContextZ3::new(&cfg);
     let slv = SolverZ3::new(&ctx);
 
-    let after = AfterZ3::new(&ctx, &vec!(cube_at_buffer), &vec!(cube_at_gripper), 7);
+    // let after = AfterZ3::new(&ctx, &vec!(cube_at_buffer), &vec!(cube_at_gripper), 7);
 
-    println!("{}", ast_to_string_z3!(&ctx, after));
+    // println!("{}", ast_to_string_z3!(&ctx, after));
 
-    // println!("original: {}", ast_to_string_z3!(&ctx, PredicateToAstZ3::new(&ctx, &move_and_stat, 0)));
-    // println!("abstracted: {}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &vars2, PredicateToAstZ3::new(&ctx, &move_and_stat, 0))));
+    let pos_vars = vec!(act_pos.clone(), ref_pos.clone());
+    let stat_vars = vec!(act_stat.clone(), ref_stat.clone());
+    let cube_vars = vec!(buffer.clone(), gripper.clone(), table.clone());
+
+    let ast_test = PredicateToAstZ3::new(&ctx, 
+        &Predicate::OR(
+            vec!(
+                Predicate::AND(
+                    vec!(
+                        move_enabled.clone(),
+                        stat_enabled.clone()
+                    )
+                ),
+                Predicate::AND(
+                    vec!(
+                        buffer_empty.clone(),
+                        stat_enabled.clone()
+                    )
+                ),
+                Predicate::AND(
+                    vec!(
+                        move_enabled.clone(),
+                        gripper_empty.clone()
+                    )
+                )
+            )
+        ), 
+        0
+    );
+
+    println!("original: \n{}", ast_to_string_z3!(&ctx, ast_test));
+    println!("original cnf: \n{}", ast_to_string_z3!(&ctx, ANDZ3::new(&ctx, GetCnfVectorZ3::new(&ctx, vec!(ast_test)))));
+    println!("===============================");
+    println!("pos abstracted soft: \n{}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &pos_vars, ast_test)));
+    println!("===============================");
+    let pos_rem =  IterOps::difference(vars.clone(), pos_vars.clone());
+    println!("pos abstracted hard: \n{}", ast_to_string_z3!(&ctx, AbstractHard::new(&ctx, &pos_rem, ast_test)));
+    println!("===============================");
+    println!("stat abstracted soft: \n{}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &stat_vars, ast_test)));
+    println!("===============================");
+    let stat_rem =  IterOps::difference(vars.clone(), stat_vars.clone());
+    println!("stat abstracted hard: \n{}", ast_to_string_z3!(&ctx, AbstractHard::new(&ctx, &stat_rem, ast_test)));
+    println!("===============================");
+    println!("cubes abstracted soft: \n{}", ast_to_string_z3!(&ctx, Abstract::new(&ctx, &cube_vars, ast_test)));
+    println!("===============================");
+    let cubes_rem =  IterOps::difference(vars.clone(), cube_vars.clone());
+    println!("cubes abstracted hard: \n{}", ast_to_string_z3!(&ctx, AbstractHard::new(&ctx, &cubes_rem, ast_test)));
+    
+}
+
+#[test]
+fn test_sequential_3(){
+    let pose_domain = vec!("buffer", "home", "table");
+    let stat_domain = vec!("active", "idle");
+    let buffer_domain = vec!("cube", "empty");
+    let gripper_domain = vec!("cube", "empty");
+    let table_domain = vec!("cube", "empty");
+
+    // var group 
+    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
+    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
+
+    // var group
+    let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
+    let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
+
+    // var group
+    let buffer = Variable::new("buffer", "buffer", buffer_domain.clone());
+
+    // var group
+    let gripper = Variable::new("gripper", "gripper", gripper_domain.clone());
+
+    // var group
+    let table = Variable::new("table", "table", table_domain.clone());
+
+    let all_vars = vec!(act_pos.clone(), ref_pos.clone(), act_stat.clone(), ref_stat.clone(),
+        buffer.clone(), gripper.clone(), table.clone());
+
+    let move_stable = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_stable = Predicate::EQVAR(act_stat.clone(), ref_stat.clone());
+    let move_transient = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_transient = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
+
+    let cube_at_buffer = Predicate::EQVAL(buffer.clone(), String::from("cube"));
+    let cube_at_gripper = Predicate::EQVAL(gripper.clone(), String::from("cube"));
+    let cube_at_table = Predicate::EQVAL(table.clone(), String::from("cube"));
+
+    let buffer_empty = Predicate::EQVAL(buffer.clone(), String::from("empty"));
+    let gripper_empty = Predicate::EQVAL(gripper.clone(), String::from("empty"));
+    let table_empty = Predicate::EQVAL(table.clone(), String::from("empty"));
+
+    // status change
+    let t1 = Transition::new(
+        "start_activate", 
+        vec!(ref_stat.clone()), 
+        &stat_stable,
+        &Predicate::EQVAL(ref_stat.clone(), String::from("active"))
+    );
+
+    let t2 = Transition::new(
+        "finish_activate", 
+        vec!(act_stat.clone()), 
+        &stat_transient,
+        &Predicate::EQVAL(act_stat.clone(), String::from("active"))
+    );
+
+    let t3 = Transition::new(
+        "start_deactivate", 
+        vec!(ref_stat.clone()), 
+        &stat_stable,
+        &Predicate::EQVAL(ref_stat.clone(), String::from("idle"))
+    );
+    
+    let t4 = Transition::new(
+        "finish_deactivate", 
+        vec!(act_stat.clone()), 
+        &stat_transient,
+        &Predicate::EQVAL(act_stat.clone(), String::from("idle"))
+    );
+
+    // moving the robot
+    let t5 = Transition::new(
+        "start_move_to_buffer",
+        vec!(ref_pos.clone()),
+        &move_stable,
+        &Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+    );
+
+    let t6 = Transition::new(
+        "finish_move_to_buffer",
+        vec!(act_pos.clone()),
+        &move_transient,
+        &Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    );
+
+    let t7 = Transition::new(
+        "start_move_to_home",
+        vec!(ref_pos.clone()),
+        &move_stable,
+        &Predicate::EQVAL(ref_pos.clone(), String::from("home"))
+    );
+
+    let t8 = Transition::new(
+        "finish_move_to_home",
+        vec!(act_pos.clone()),
+        &move_transient,
+        &Predicate::EQVAL(act_pos.clone(), String::from("home"))
+    );
+
+    let t9 = Transition::new(
+        "start_move_to_table",
+        vec!(ref_pos.clone()),
+        &move_stable,
+        &Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+    );
+
+    let t10 = Transition::new(
+        "finish_move_to_table",
+        vec!(act_pos.clone()),
+        &move_transient,
+        &Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    );
+
+    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10);
+
+    // ltl specs (real ugly, need some macros):
+
+    // 1. can't move if not active:
+    let s1 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            Predicate::NEQVAR(act_pos.clone(), ref_pos.clone()),
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_stat.clone(), String::from("idle")),
+                                    Predicate::EQVAL(ref_stat.clone(), String::from("idle"))
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    let s4 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+                )
+            )
+        )
+    );
+
+    // 2c. has to go through the home pos (next is inherently global):
+    let se1 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+                )
+            )
+        )
+    );
+
+    // 2d. has to go through the home pos (next is inherently global):
+    let se2 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                )
+            )
+        )
+    );
+
+     // 2a. has to go through the home pos (next is inherently global):
+    let se3 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+                )
+            )
+        )
+    );
+
+    // 2b. has to go through the home pos (next is inherently global):
+    let se4 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                )
+            )
+        )
+    );
+
+    let s7 = Predicate::NOT(
+        vec!(
+            Predicate::NEXT(
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+                ), 
+                vec!(
+                    Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+                )
+            )
+        )
+    );
+
+    
+
+    // 3. there is only one cube in the system (implement pbeq in the future):
+    let s8 = Predicate::GLOB(
+        vec!(
+            Predicate::OR(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            Predicate::EQVAL(buffer.clone(), String::from("cube")),
+                            Predicate::NEQVAL(gripper.clone(), String::from("cube")),
+                            Predicate::NEQVAL(table.clone(), String::from("cube"))
+                        )
+                    ),
+                    Predicate::AND(
+                        vec!(
+                            Predicate::EQVAL(gripper.clone(), String::from("cube")),
+                            Predicate::NEQVAL(buffer.clone(), String::from("cube")),
+                            Predicate::NEQVAL(table.clone(), String::from("cube"))
+                        )
+                    ),
+                    Predicate::AND(
+                        vec!(
+                            Predicate::EQVAL(table.clone(), String::from("cube")),
+                            Predicate::NEQVAL(gripper.clone(), String::from("cube")),
+                            Predicate::NEQVAL(buffer.clone(), String::from("cube"))
+                        )
+                    )
+                )        
+            )
+        )
+    );
+
+    // after is inherently global
+    let s9 = Predicate::AFTER(
+        vec!(
+            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+        ),
+        vec!(
+            Predicate::EQVAL(ref_pos.clone(), String::from("buffer"))
+        )
+    );
+
+    let s10 = Predicate::AFTER(
+        vec!(
+            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+        ),
+        vec!(
+            Predicate::EQVAL(ref_pos.clone(), String::from("table"))
+        )
+    );
+
+    let s11 = Predicate::AFTER(
+        vec!(
+            Predicate::EQVAL(act_pos.clone(), String::from("home"))
+        ),
+        vec!(
+            Predicate::EQVAL(ref_pos.clone(), String::from("home"))
+        )
+    );
+    
+    
+    
+    // let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s6, s7, s8));
+    let specs = Predicate::AND(vec!(s1, s4, s7, s8, s9, s10, s11, se1, se2, se3, se4));
+
+    // initial:
+    let initial = Predicate::AND(
+        vec!(
+            Predicate::EQVAL(ref_stat.clone(), String::from("idle")),
+            Predicate::EQVAL(ref_pos.clone(), String::from("buffer")), 
+            Predicate::EQVAL(act_pos.clone(), String::from("buffer")), 
+            Predicate::EQVAL(act_stat.clone(), String::from("idle")),
+            Predicate::EQVAL(table.clone(), String::from("cube"))
+        )
+    );
+
+    
+
+    // goal:
+    let goal = Predicate::AND(
+        vec!(
+            Predicate::EQVAL(act_pos.clone(), String::from("table")), 
+            Predicate::EQVAL(act_stat.clone(), String::from("active")),
+            Predicate::EQVAL(buffer.clone(), String::from("cube"))
+        )
+    );
+
+    let problem = PlanningProblem::new(String::from("robot1"), all_vars, initial, goal, trans, specs, 20);
+    // let result = Sequential::new(&problem, &vec!());
+
+    let pos_vars = vec!(act_pos.clone(), ref_pos.clone());
+    let stat_vars = vec!(act_stat.clone(), ref_stat.clone());
+    let cube_vars = vec!(buffer.clone(), gripper.clone(), table.clone());
+    let soft_result_full = Sequential::new(&problem, &vec!());
+    let soft_result_pos = Sequential::new(&problem, &pos_vars);
+    let soft_result_stat = Sequential::new(&problem, &stat_vars);
+    let soft_result_cube = Sequential::new(&problem, &cube_vars);
+    let hard_result_full = Sequential2::new(&problem, &vec!());
+    let hard_result_pos = Sequential2::new(&problem, &pos_vars);
+    let hard_result_stat = Sequential2::new(&problem, &stat_vars);
+    let hard_result_cube = Sequential2::new(&problem, &cube_vars);
+
+    println!("soft_plan_found_full: {:?}", soft_result_full.plan_found);
+    println!("soft_plan_lenght_full: {:?}", soft_result_full.plan_length);
+    println!("soft_time_to_solve_full: {:?}", soft_result_full.time_to_solve);
+    println!("soft_trace_full: ");
+    
+    for t in &soft_result_full.trace{
+        
+        println!("soft_state_full: {:?}", t.state);
+        println!("soft_trans_full: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("hard_plan_found_full: {:?}", hard_result_full.plan_found);
+    println!("hard_plan_lenght_full: {:?}", hard_result_full.plan_length);
+    println!("hard_time_to_solve_full: {:?}", hard_result_full.time_to_solve);
+    println!("hard_trace_full: ");
+    
+    for t in &hard_result_full.trace{
+        
+        println!("hard_state_full: {:?}", t.state);
+        println!("hard_trans_full: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+
+    println!("soft_plan_found_pos: {:?}", soft_result_pos.plan_found);
+    println!("soft_plan_lenght_pos: {:?}", soft_result_pos.plan_length);
+    println!("soft_time_to_solve_pos: {:?}", soft_result_pos.time_to_solve);
+    println!("soft_trace_pos: ");
+    
+    for t in &soft_result_pos.trace{
+        
+        println!("soft_state_pos: {:?}", t.state);
+        println!("soft_trans_pos: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("hard_plan_found_pos: {:?}", hard_result_pos.plan_found);
+    println!("hard_plan_lenght_pos: {:?}", hard_result_pos.plan_length);
+    println!("hard_time_to_solve_pos: {:?}", hard_result_pos.time_to_solve);
+    println!("hard_trace_pos: ");
+    
+    for t in &hard_result_pos.trace{
+        
+        println!("hard_state_pos: {:?}", t.state);
+        println!("hard_trans_pos: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+
+    println!("soft_plan_found_stat: {:?}", soft_result_stat.plan_found);
+    println!("soft_plan_lenght_stat: {:?}", soft_result_stat.plan_length);
+    println!("soft_time_to_solve_stat: {:?}", soft_result_stat.time_to_solve);
+    println!("soft_trace_stat: ");
+    
+    for t in &soft_result_stat.trace{
+        
+        println!("soft_state_stat: {:?}", t.state);
+        println!("soft_trans_stat: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("hard_plan_found_stat: {:?}", hard_result_stat.plan_found);
+    println!("hard_plan_lenght_stat: {:?}", hard_result_stat.plan_length);
+    println!("hard_time_to_solve_stat: {:?}", hard_result_stat.time_to_solve);
+    println!("hard_trace_stat: ");
+    
+    for t in &hard_result_stat.trace{
+        
+        println!("hard_state_stat: {:?}", t.state);
+        println!("hard_trans_stat: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+
+    println!("soft_plan_found_cube: {:?}", soft_result_cube.plan_found);
+    println!("soft_plan_lenght_cube: {:?}", soft_result_cube.plan_length);
+    println!("soft_time_to_solve_cube: {:?}", soft_result_cube.time_to_solve);
+    println!("soft_trace_cube: ");
+    
+    for t in &soft_result_cube.trace{
+        
+        println!("soft_state_cube: {:?}", t.state);
+        println!("soft_trans_cube: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("hard_plan_found_cube: {:?}", hard_result_cube.plan_found);
+    println!("hard_plan_lenght_cube: {:?}", hard_result_cube.plan_length);
+    println!("hard_time_to_solve_cube: {:?}", hard_result_cube.time_to_solve);
+    println!("hard_trace_cube: ");
+    
+    for t in &hard_result_cube.trace{
+        
+        println!("hard_state_cube: {:?}", t.state);
+        println!("hard_trans_cube: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 }
