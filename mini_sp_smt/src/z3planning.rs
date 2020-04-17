@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use z3_sys::*;
 use super::*;
 
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug, PartialOrd, Ord)]
 pub struct Variable {
     n: String,    
     t: String,     
@@ -22,12 +22,11 @@ pub struct Transition {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct Transition2 {
+pub struct ParamTransition {
     n: String,
     v: Vec<Variable>,
-    p: Vec<(String, bool)>,
-    g: Predicate,
-    u: Predicate
+    g: Vec<(String, Predicate)>,
+    u: Vec<(String, Predicate)>
 }
 
 #[derive(Debug)]
@@ -42,16 +41,16 @@ pub struct PlanningProblem {
 }
 
 #[derive(Debug)]
-pub struct PlanningProblem2 {
+pub struct ParamPlanningProblem {
     name: String,
     vars: Vec<Variable>,
     params: Vec<(String, bool)>,
     initial: Predicate,
     goal: Predicate,
-    trans: Vec<Transition>,
+    trans: Vec<ParamTransition>,
     ltl_specs: Predicate,
-    level: u32,
-    concat: u32,
+    // level: u32,
+    // concat: u32,
     max_steps: u32
 }
 
@@ -75,7 +74,7 @@ pub struct PlanningResult {
     pub time_to_solve: std::time::Duration,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
 pub enum Predicate {
     AND(Vec<Predicate>),
     OR(Vec<Predicate>),
@@ -118,6 +117,8 @@ pub struct AssignmentToAstZ3<'ctx> {
 }
 
 pub struct Sequential {}
+
+pub struct ParamSequential {}
 
 pub struct Sequential2 {}
 
@@ -205,13 +206,52 @@ impl Transition {
     }
 }
 
-impl Transition2 {
-    pub fn new(n: &str, v: Vec<Variable>, p: Vec<(&str, bool)>, g: &Predicate, u: &Predicate) -> Transition2 {
-        Transition2 { n: n.to_string(),
+// impl Transition2 {
+//     pub fn new(n: &str, v: Vec<Variable>, p: Vec<(&str, bool)>, g: &Vec<(&str, Predicate)>, u: &Vec<(&str, Predicate)>) -> Transition {
+//         Transition { n: n.to_string(),
+//                      v: v.clone(),
+//                     //  p: p.iter().map(|x| (x.0.to_string(), x.1)).collect(),
+//                      g: {
+//                         //  let true_p: Vec<(&str, bool)> = p.iter().filter(|&x| x.1).map(|x| *x.0).collect();
+//                          let mut to_and = vec!();
+//                          for param in &p {
+//                              if param.1 {
+//                                 for subguard in g {
+//                                     if param.0 == subguard.0 {
+//                                         to_and.push(subguard.1.clone())
+//                                     }
+//                                 }
+//                              }
+                            
+//                          };
+//                          Predicate::AND(to_and)
+//                      },
+//                      u: {
+//                         //  let true_p: Vec<(&str, bool)> = p.iter().filter(|&x| x.1).map(|x| *x.0).collect();
+//                          let mut to_and = vec!();
+//                          for param in &p {
+//                              if param.1 {
+//                                 for subupdate in u {
+//                                     if param.0 == subupdate.0 {
+//                                         to_and.push(subupdate.1.clone())
+//                                     }
+//                                 }
+//                              }
+                            
+//                          };
+//                          Predicate::AND(to_and)
+//                      }
+//         }
+//     }
+// }
+
+impl ParamTransition {
+    pub fn new(n: &str, v: Vec<Variable>, g: &Vec<(&str, Predicate)>, u: &Vec<(&str, Predicate)>) -> ParamTransition {
+        ParamTransition { n: n.to_string(),
                      v: v.clone(),
-                     p: p.iter().map(|x| (x.0.to_string(), x.1)).collect(),
-                     g: g.clone(),
-                     u: u.clone() }
+                     g: g.iter().map(|x| (x.0.to_string(), x.1.clone())).collect(),
+                     u: u.iter().map(|x| (x.0.to_string(), x.1.clone())).collect()
+        }
     }
 }
 
@@ -235,27 +275,27 @@ impl PlanningProblem {
     }
 }
 
-impl PlanningProblem2 {
+impl ParamPlanningProblem {
     pub fn new(name: String,
                vars: Vec<Variable>,
-               params: Vec<(String, bool)>,
+               params: Vec<(&str, bool)>,
                initial: Predicate,
                goal: Predicate,
-               trans: Vec<Transition>,
+               trans: Vec<ParamTransition>,
                ltl_specs: Predicate,
-               level: u32,
-               concat: u32,
-               max_steps: u32) -> PlanningProblem2 {
-        PlanningProblem2 {
+            //    level: u32,
+            //    concat: u32,
+               max_steps: u32) -> ParamPlanningProblem {
+        ParamPlanningProblem {
             name: name.to_string(),
             vars: vars,
-            params: params,
+            params: params.iter().map(|x| (x.0.to_string(), x.1)).collect(),
             initial: initial,
             goal: goal,
             trans: trans,
             ltl_specs: ltl_specs,
-            level: level,
-            concat: concat,
+            // level: level,
+            // concat: concat,
             max_steps: max_steps
         }
     }
@@ -414,6 +454,116 @@ impl Sequential {
                 slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step)));
                 // slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step));
                 slv_assert_z3!(&ctx, &slv, Abstract::new(&ctx, &vars, PredicateToAstZ3::new(&ctx, &p.goal, step)));
+        
+            } else {
+                plan_found = true;
+                break;
+            }
+        }
+
+        let planning_time = now.elapsed();
+
+        let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
+        let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
+        let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
+        // for a in cnf {
+        //     println!("{}", ast_to_string_z3!(&ctx, a))
+        // }
+        
+        if plan_found == true {
+            let model = SlvGetModelZ3::new(&ctx, &slv);
+            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        } else {
+            let model = FreshModelZ3::new(&ctx);
+            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        }              
+    }   
+}
+
+// accepts param_planning_problem that accepts param transitions
+impl ParamSequential {
+    pub fn new(p: &ParamPlanningProblem, params: &Vec<(&str, bool)>, vars: &Vec<Variable>) -> PlanningResult {
+
+        println!("parameterized_trans: {:?}", p.trans[0]);
+
+        // resolve transitions based on parameters:
+        let mut resolved_trans = vec!();
+        for t in &p.trans {
+            let mut resolved_guard = vec!();
+            let mut resolved_update = vec!();
+            for param in params {
+                for t_guard in &t.g {
+                    if t_guard.0 == param.0 && param.1 {
+                        resolved_guard.push(t_guard.1.clone())
+                    }
+                };
+                for t_update in &t.u {
+                    if t_update.0 == param.0 && param.1 {
+                        resolved_update.push(t_update.1.clone())
+                    }
+                };
+            }
+
+            resolved_guard.sort();
+            resolved_guard.dedup();
+
+            resolved_update.sort();
+            resolved_update.dedup();
+
+            resolved_trans.push(
+                Transition::new(
+                    t.n.as_str(), 
+                    t.v.clone(),
+                    &Predicate::AND(resolved_guard),
+                    &Predicate::AND(resolved_update)
+            )
+        )
+        }
+
+        println!("resolved_trans: {:?}", resolved_trans[0]);
+
+        let cfg = ConfigZ3::new();
+        let ctx = ContextZ3::new(&cfg);
+        let slv = SolverZ3::new(&ctx);
+    
+        slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.initial, 0));
+
+        SlvPushZ3::new(&ctx, &slv); // create backtracking point
+        slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, 0));
+        slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.goal, 0));
+
+        let now = Instant::now();
+        let mut plan_found: bool = false;
+
+        let mut step: u32 = 0;
+
+        while step < p.max_steps + 1 {
+            step = step + 1;
+            if SlvCheckZ3::new(&ctx, &slv) != 1 {
+                SlvPopZ3::new(&ctx, &slv, 1);
+
+                let mut all_trans = vec!();
+                for t in &resolved_trans {
+                    let name = format!("{}_t{}", &t.n, step);
+                    let guard = PredicateToAstZ3::new(&ctx, &t.g, step - 1);
+                    let updates = UpdatePredicateToAstZ3::new(&ctx, &t.u, step);
+                    let keeps = KeepVariableValues::new(&ctx, &p.vars, t, step);
+
+                    all_trans.push(ANDZ3::new(&ctx, 
+                        vec!(EQZ3::new(&ctx, 
+                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), name.as_str()), 
+                            BoolZ3::new(&ctx, true)),
+                        guard, updates, keeps)));
+                }
+
+                slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
+                
+                SlvPushZ3::new(&ctx, &slv);
+                slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step));
+                // slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.ltl_specs, step));
+                slv_assert_z3!(&ctx, &slv, PredicateToAstZ3::new(&ctx, &p.goal, step));
         
             } else {
                 plan_found = true;
@@ -2220,6 +2370,131 @@ fn test_idea_1_iteration_2(){
 }
 
 #[test]
+fn test_transition2(){
+
+    let pose_domain = vec!("buffer", "home", "table");
+    let stat_domain = vec!("active", "idle");
+    let buffer_domain = vec!("cube", "ball", "empty");
+    let gripper_domain = vec!("cube", "ball", "empty");
+    let table_domain = vec!("cube", "ball", "empty");
+
+    // var group pos
+    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
+    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
+
+    // var group stat
+    let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
+    let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
+
+    // var group cube
+    let buffer = Variable::new("buffer", "buffer", buffer_domain.clone());
+    let gripper = Variable::new("gripper", "gripper", gripper_domain.clone());
+    let table = Variable::new("table", "table", table_domain.clone());
+
+    // basic predicates
+    let t = Predicate::TRUE;
+    let f = Predicate::FALSE;
+
+    // act stat predicates
+    let stat_active = Predicate::EQVAL(act_stat.clone(), String::from("active"));
+    let stat_idle = Predicate::EQVAL(act_stat.clone(), String::from("idle"));
+    let not_stat_active = Predicate::NOT(vec!(stat_active.clone()));
+    let not_stat_idle = Predicate::NOT(vec!(stat_idle.clone()));
+
+    // ref stat predicates
+    let set_stat_active = Predicate::EQVAL(ref_stat.clone(), String::from("active"));
+    let set_stat_idle = Predicate::EQVAL(ref_stat.clone(), String::from("idle"));
+    let not_set_stat_active = Predicate::NOT(vec!(set_stat_active.clone()));
+    let not_set_stat_idle = Predicate::NOT(vec!(set_stat_idle.clone()));
+
+    // act pos predicates
+    let pos_buffer = Predicate::EQVAL(act_pos.clone(), String::from("buffer"));
+    let pos_table = Predicate::EQVAL(act_pos.clone(), String::from("table"));
+    let pos_home = Predicate::EQVAL(act_pos.clone(), String::from("home"));
+    let not_pos_buffer = Predicate::NOT(vec!(pos_buffer.clone()));
+    let not_pos_table = Predicate::NOT(vec!(pos_table.clone()));
+    let not_pos_home = Predicate::NOT(vec!(pos_home.clone()));
+
+    // ref pos predicates
+    let set_pos_buffer = Predicate::EQVAL(ref_pos.clone(), String::from("buffer"));
+    let set_pos_table = Predicate::EQVAL(ref_pos.clone(), String::from("table"));
+    let set_pos_home = Predicate::EQVAL(ref_pos.clone(), String::from("home"));
+    let not_set_pos_buffer = Predicate::NOT(vec!(set_pos_buffer.clone()));
+    let not_set_pos_table = Predicate::NOT(vec!(set_pos_table.clone()));
+    let not_set_pos_home = Predicate::NOT(vec!(set_pos_home.clone()));
+
+    // act buffer predicates
+    let buffer_cube = Predicate::EQVAL(buffer.clone(), String::from("cube"));
+    let buffer_ball = Predicate::EQVAL(buffer.clone(), String::from("ball"));
+    let buffer_empty = Predicate::EQVAL(buffer.clone(), String::from("empty"));
+    let not_buffer_cube = Predicate::NOT(vec!(buffer_cube.clone()));
+    let not_buffer_ball = Predicate::NOT(vec!(buffer_ball.clone()));
+    let not_buffer_empty = Predicate::NOT(vec!(buffer_empty.clone()));
+    
+    // act gripper predicates
+    let gripper_cube = Predicate::EQVAL(gripper.clone(), String::from("cube"));
+    let gripper_ball = Predicate::EQVAL(gripper.clone(), String::from("ball"));
+    let gripper_empty = Predicate::EQVAL(gripper.clone(), String::from("empty"));
+    let not_gripper_cube = Predicate::NOT(vec!(gripper_cube.clone()));
+    let not_gripper_ball = Predicate::NOT(vec!(gripper_ball.clone()));
+    let not_gripper_empty = Predicate::NOT(vec!(gripper_empty.clone()));
+
+    // act table predicates
+    let table_cube = Predicate::EQVAL(table.clone(), String::from("cube"));
+    let table_ball = Predicate::EQVAL(table.clone(), String::from("ball"));
+    let table_empty = Predicate::EQVAL(table.clone(), String::from("empty"));
+    let not_table_cube = Predicate::NOT(vec!(table_cube.clone()));
+    let not_table_ball = Predicate::NOT(vec!(table_ball.clone()));
+    let not_table_empty = Predicate::NOT(vec!(table_empty.clone()));
+
+    // are ref == act predicates
+    let pos_stable = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_stable = Predicate::EQVAR(act_stat.clone(), ref_stat.clone());
+    let not_pos_stable = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
+    let not_stat_stable = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
+
+    // variables in the problem
+    let all_vars = vec!(
+        act_pos.clone(), 
+        ref_pos.clone(), 
+        act_stat.clone(), 
+        ref_stat.clone(),
+        buffer.clone(), 
+        gripper.clone(), 
+        table.clone()
+    );
+
+    let t = ParamTransition::new(
+        "finish_move_to_table",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_table.clone()),
+            ("pos", set_pos_table.clone())
+        ),
+        &vec!(
+            ("pos", pos_table.clone())
+        )
+    );
+
+    let mut act: Vec<(&str, bool)> = vec!(("pos", false), ("stat", true), ("cube", true));
+    let problem = ParamPlanningProblem::new(
+        String::from("param_prob_1"), 
+        all_vars.clone(),
+        act.clone(),
+        Predicate::TRUE,
+        Predicate::TRUE,
+        vec!(t), 
+        Predicate::TRUE, 
+        30
+    );
+
+    let result = ParamSequential::new(&problem, &act, &vec!());
+
+}
+
+#[test]
 fn test_idea_1_iteration_3(){
 
     // activation vector, mutable because it has to change later
@@ -3104,6 +3379,7 @@ fn test_idea_1_iteration_3(){
         let complete_result = Sequential::new(&problem, &vec!());
 
         println!("level: {:?}", 0);
+        // println!("subplan: {:?}", 0);
         println!("concat: {:?}", 0);
         println!("complete_plan_found: {:?}", complete_result.plan_found);
         println!("complete_plan_lenght: {:?}", complete_result.plan_length);
@@ -3120,14 +3396,23 @@ fn test_idea_1_iteration_3(){
         println!("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 
         if !act.iter().all(|x| x.1) {
+
+            // have to do the refining here, that is why I need the problem parameterized...
+            // also have to pass the activation parameters...
+            // this means that the transitions probably have to be parameterized
+            // also, this means that maybe in the end I have to have the conditions in z3...
+            // SO, YES, PROBABLY THE WHOLE PARAMETERS 
+
             let new_problems = GenerateProblems::new(&complete_result, &problem, &all_vars);
             let mut concat: u32 = 0;
+            // let mut subplan: u32 = 0;
             let mut level: u32 = 1;
             for p in new_problems {
                 
                 let sol = Sequential::new(&p, &vec!());
 
                 println!("level: {:?}", level);
+                // println!("subplan: {:?}", subplan);
                 println!("concat: {:?}", concat);
                 println!("subplan_found: {:?}", sol.plan_found);
                 println!("subplan_lenght: {:?}", sol.plan_length);
