@@ -60,7 +60,7 @@ pub struct PlanningFrame {
     trans: String,
 }
 
-pub struct GetSPPlanningResultZ3<'ctx> {
+pub struct GetPlanningResultZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub model: Z3_model,
     pub nr_steps: u32,
@@ -211,45 +211,6 @@ impl Transition {
                      u: u.clone() }
     }
 }
-
-// impl Transition2 {
-//     pub fn new(n: &str, v: Vec<Variable>, p: Vec<(&str, bool)>, g: &Vec<(&str, Predicate)>, u: &Vec<(&str, Predicate)>) -> Transition {
-//         Transition { n: n.to_string(),
-//                      v: v.clone(),
-//                     //  p: p.iter().map(|x| (x.0.to_string(), x.1)).collect(),
-//                      g: {
-//                         //  let true_p: Vec<(&str, bool)> = p.iter().filter(|&x| x.1).map(|x| *x.0).collect();
-//                          let mut to_and = vec!();
-//                          for param in &p {
-//                              if param.1 {
-//                                 for subguard in g {
-//                                     if param.0 == subguard.0 {
-//                                         to_and.push(subguard.1.clone())
-//                                     }
-//                                 }
-//                              }
-                            
-//                          };
-//                          Predicate::AND(to_and)
-//                      },
-//                      u: {
-//                         //  let true_p: Vec<(&str, bool)> = p.iter().filter(|&x| x.1).map(|x| *x.0).collect();
-//                          let mut to_and = vec!();
-//                          for param in &p {
-//                              if param.1 {
-//                                 for subupdate in u {
-//                                     if param.0 == subupdate.0 {
-//                                         to_and.push(subupdate.1.clone())
-//                                     }
-//                                 }
-//                              }
-                            
-//                          };
-//                          Predicate::AND(to_and)
-//                      }
-//         }
-//     }
-// }
 
 impl ParamTransition {
     pub fn new(n: &str, v: Vec<Variable>, g: &Vec<(&str, Predicate)>, u: &Vec<(&str, Predicate)>) -> ParamTransition {
@@ -478,11 +439,11 @@ impl Sequential {
         
         if plan_found == true {
             let model = SlvGetModelZ3::new(&ctx, &slv);
-            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
             result
         } else {
             let model = FreshModelZ3::new(&ctx);
-            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
             result
         }              
     }   
@@ -612,11 +573,11 @@ impl ParamSequential {
         
         if plan_found == true {
             let model = SlvGetModelZ3::new(&ctx, &slv);
-            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
             result
         } else {
             let model = FreshModelZ3::new(&ctx);
-            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
             result
         }              
     }   
@@ -778,8 +739,6 @@ impl GenerateParamProblems {
     pub fn new(r: &PlanningResult, p: &ParamPlanningProblem, uv: &Vec<Variable>) -> Vec<ParamPlanningProblem> {
         let mut new_problems: Vec<ParamPlanningProblem> = vec!();
 
-        // ParamPlanningProblem::new(name: String, vars: Vec<Variable>, params: Vec<(&str, bool)>, initial: Vec<(&str, Predicate)>, goal: Vec<(&str, Predicate)>, trans: Vec<ParamTransition>, ltl_specs: Predicate, max_steps: u32)
-
         match r.plan_found {
             false => panic!("No plan at GenerateProblems::new"),
             true => match r.plan_length == 0 {
@@ -815,7 +774,7 @@ impl GenerateParamProblems {
     }
 }
 
-impl <'ctx> GetSPPlanningResultZ3<'ctx> {
+impl <'ctx> GetPlanningResultZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
     planning_time: std::time::Duration, plan_found: bool) -> PlanningResult {
         let model_str = ModelToStringZ3::new(&ctx, model);
@@ -1759,76 +1718,74 @@ fn test_idea_1_iteration_5(){
         ("cube", buffer_cube.clone())
     );
     
-    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), false), ("stat".to_string(), false), ("cube".to_string(), false));
+    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), true), ("cube".to_string(), true));
     let refining_order: Vec<&str> = vec!("pos", "stat", "cube"); // opposite for some reason?? fix this
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
     let specs = Predicate::AND(vec!(s1, s2, s3, s4));
 
-    println!("activation_test: {:?}", act);
-    act = ActivateNextParam::new(&act, &refining_order);
-    println!("activation_test: {:?}", act);
-    act = ActivateNextParam::new(&act, &refining_order);
-    println!("activation_test: {:?}", act);
-    act = ActivateNextParam::new(&act, &refining_order);
-    println!("activation_test: {:?}", act);
+    let mut concat: u32 = 0;
+    let mut level: u32 = 0;
+
+    if act.iter().all(|x| x.1) {
+
+        let problem = ParamPlanningProblem::new(
+            String::from("param_prob_1"), 
+            all_vars.clone(),
+            act.clone().iter().map(|x| (x.0.as_str(), x.1)).collect(),
+            initial.clone(),
+            goal.clone(),
+            trans.clone(), 
+            specs.clone(),
+            30
+        );
     
-
-    let problem = ParamPlanningProblem::new(
-        String::from("param_prob_1"), 
-        all_vars.clone(),
-        act.clone().iter().map(|x| (x.0.as_str(), x.1)).collect(),
-        initial,
-        goal,
-        trans, 
-        specs,
-        30
-    );
-
-    let complete_result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), &vec!());
-
-    println!("level: {:?}", 0);
-    println!("concat: {:?}", 0);
-    println!("complete_plan_found: {:?}", complete_result.plan_found);
-    println!("complete_plan_lenght: {:?}", complete_result.plan_length);
-    println!("complete_time_to_solve: {:?}", complete_result.time_to_solve);
-    println!("complete_trace: ");
+        let complete_result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), &vec!());
     
-    for t in &complete_result.trace{
-        
-        println!("state: {:?}", t.state);
-        println!("trans: {:?}", t.trans);
-        println!("=========================");
-    }
+        println!("level: {:?}", level);
+        println!("concat: {:?}", concat);
+        println!("complete_plan_found: {:?}", complete_result.plan_found);
+        println!("complete_plan_lenght: {:?}", complete_result.plan_length);
+        println!("complete_time_to_solve: {:?}", complete_result.time_to_solve);
+        println!("complete_trace: ");
 
-    if !act.iter().all(|x| x.1) {
+    };
 
-        let new_problems = GenerateParamProblems::new(&complete_result, &problem, &all_vars);
-        let mut concat: u32 = 0;
-        let mut level: u32 = 1;
-        for p in new_problems {
+    // fn calc()
+    while !act.iter().all(|x| x.1) {
 
-            // now we can start refining: (or maybe refine in the generate_problems? Probably yes)
-            // have to pass final init and final goal and do some concatenation...?
-            let mut act2: Vec<(&str, bool)> = vec!(("pos", true), ("stat", true), ("cube", true));
-            let sol = ParamSequential::new(&p, &act2, &vec!());
+        act = ActivateNextParam::new(&act, &refining_order);
 
-            println!("level: {:?}", level);
-            println!("concat: {:?}", concat);
-            println!("subplan_found: {:?}", sol.plan_found);
-            println!("subplan_lenght: {:?}", sol.plan_length);
-            println!("subtime_to_solve: {:?}", sol.time_to_solve);
-            println!("trace: ");
+        let problem = ParamPlanningProblem::new(
+            String::from("param_prob_1"), 
+            all_vars.clone(),
+            act.clone().iter().map(|x| (x.0.as_str(), x.1)).collect(),
+            initial.clone(),
+            goal.clone(),
+            trans.clone(), 
+            specs.clone(),
+            30
+        );
+    
+        let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), &vec!());
 
-            for t in &sol.trace{
+        if !act.iter().all(|x| x.1) {
+            let new_problems = GenerateParamProblems::new(&result, &problem, &all_vars);
+            for p in new_problems {
+                act = ActivateNextParam::new(&act, &refining_order);
 
-                println!("state: {:?}", t.state);
-                println!("trans: {:?}", t.trans);
-                println!("=========================");
+                let problem = ParamPlanningProblem::new(
+                    String::from("param_prob_1"), 
+                    all_vars.clone(),
+                    act.clone().iter().map(|x| (x.0.as_str(), x.1)).collect(),
+                    initial.clone(),
+                    goal.clone(),
+                    trans.clone(), 
+                    specs.clone(),
+                    30
+                );
+            
+                let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), &vec!());
             }
-
-            println!("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
-
-            concat = concat + 1;
         }
     }
 }
