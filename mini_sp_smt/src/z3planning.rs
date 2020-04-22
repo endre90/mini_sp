@@ -161,6 +161,8 @@ pub struct Compositional {}
 
 pub struct Compositional2 {}
 
+pub struct Concatenate {}
+
 pub struct ActivateNextParam {}
 
 pub struct Abstract<'ctx> {
@@ -959,99 +961,192 @@ impl Compositional {
 //     }
 // }
 
-impl Compositional2 {
-    pub fn new(curr_problem: &ParamPlanningProblem,
-               parameters: &Vec<(String, bool)>, 
-               order: &Vec<&str>, 
-               cumulative_results: &Vec<ParamPlanningResult>,
-               curr_level: u32,
-               curr_concat: u32) -> Vec<ParamPlanningResult> {
+// impl Compositional2 {
+//     pub fn new(curr_problem: &ParamPlanningProblem,
+//                parameters: &Vec<(String, bool)>, 
+//                order: &Vec<&str>, 
+//                cumulative_results: &Vec<ParamPlanningResult>,
+//                curr_level: u32,
+//                curr_concat: u32) -> Vec<ParamPlanningResult> {
     
-        let mut level: u32 = curr_level;
-        let mut concat: u32 = curr_concat;
-        let mut all_results: Vec<ParamPlanningResult> = cumulative_results.clone();
+//         let mut level: u32 = curr_level;
+//         let mut concat: u32 = curr_concat;
+//         let mut all_results: Vec<ParamPlanningResult> = cumulative_results.clone();
 
-        for s in all_results.clone() {
+//         for s in all_results.clone() {
 
-            println!("level: {:?}", level);
-            println!("concat: {:?}", concat);
-            println!("plan_found: {:?}", s.plan_found);
-            println!("plan_lenght: {:?}", s.plan_length);
-            println!("time_to_solve: {:?}", s.time_to_solve);
-            println!("trace: ");
+//             println!("level: {:?}", level);
+//             println!("concat: {:?}", concat);
+//             println!("plan_found: {:?}", s.plan_found);
+//             println!("plan_lenght: {:?}", s.plan_length);
+//             println!("time_to_solve: {:?}", s.time_to_solve);
+//             println!("trace: ");
     
-            for t in &s.trace{
+//             for t in &s.trace{
             
-                println!("state: {:?}", t.state);
-                println!("trans: {:?}", t.trans);
-                println!("=========================");
-            }
-        }
+//                 println!("state: {:?}", t.state);
+//                 println!("trans: {:?}", t.trans);
+//                 println!("=========================");
+//             }
+//         }
 
-        println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+//         println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 
-        if !parameters.iter().all(|x| !x.1) {
+//         if !parameters.iter().all(|x| !x.1) {
             
-            if !parameters.iter().all(|x| x.1) {
-                level = level + 1;
-                concat = 0;
-                println!("11111111111111111111111111");
-                let result = ParamSequential::new(&curr_problem, &parameters.iter().map(|x| (x.0.as_str(), x.1)).collect(), level, concat);
-                all_results.push(result.clone());
+//             if !parameters.iter().all(|x| x.1) {
+//                 level = level + 1;
+//                 concat = 0;
+//                 println!("11111111111111111111111111");
+//                 let result = ParamSequential::new(&curr_problem, &parameters.iter().map(|x| (x.0.as_str(), x.1)).collect(), level, concat);
+//                 all_results.push(result.clone());
 
-                let refined_params = &ActivateNextParam::new(&parameters, &order);
+//                 let refined_params = &ActivateNextParam::new(&parameters, &order);
 
-                if result.plan_found {
-                    if result.plan_length != 0 {
-                        for i in 0..result.trace.len() - 1 {
+//                 if result.plan_found {
+//                     if result.plan_length != 0 {
+//                         for i in 0..result.trace.len() - 1 {
 
-                            let problem = ParamPlanningProblem::new(
-                                format!("problem_l{:?}_c{:?}", level, concat), 
-                                curr_problem.vars.clone(),
-                                refined_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
-                                ParamStateToPredicate::new(&result.trace[i].state.iter().map(|x| x.as_str()).collect(), &curr_problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-                                ParamStateToPredicate::new(&result.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &curr_problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-                                curr_problem.trans.clone(),
-                                curr_problem.ltl_specs.clone(),
-                                curr_problem.max_steps);
+//                             let problem = ParamPlanningProblem::new(
+//                                 format!("problem_l{:?}_c{:?}", level, concat), 
+//                                 curr_problem.vars.clone(),
+//                                 refined_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
+//                                 ParamStateToPredicate::new(&result.trace[i].state.iter().map(|x| x.as_str()).collect(), &curr_problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+//                                 ParamStateToPredicate::new(&result.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &curr_problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+//                                 curr_problem.trans.clone(),
+//                                 curr_problem.ltl_specs.clone(),
+//                                 curr_problem.max_steps);
                             
-                            concat = concat + 1;
-                            Compositional2::new(&problem, &refined_params, order, &all_results, level, concat);
-                        }
-                    } else {
+//                             concat = concat + 1;
+//                             Compositional2::new(&problem, &refined_params, order, &all_results, level, concat);
+//                         }
+//                     } else {
 
-                        let problem = ParamPlanningProblem::new(
-                            format!("problem_l{:?}_c{:?}", level, concat), 
-                            curr_problem.vars.clone(),
-                            refined_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
-                            ParamStateToPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &curr_problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-                            ParamStateToPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &curr_problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-                            curr_problem.trans.clone(),
-                            curr_problem.ltl_specs.clone(),
-                            curr_problem.max_steps);
+//                         let problem = ParamPlanningProblem::new(
+//                             format!("problem_l{:?}_c{:?}", level, concat), 
+//                             curr_problem.vars.clone(),
+//                             refined_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
+//                             ParamStateToPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &curr_problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+//                             ParamStateToPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &curr_problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+//                             curr_problem.trans.clone(),
+//                             curr_problem.ltl_specs.clone(),
+//                             curr_problem.max_steps);
                         
+//                         concat = concat + 1;
+//                         Compositional2::new(&problem, &refined_params, order, &all_results, level, concat);
+//                     }
+//                 } else {
+//                     panic!("No plan found at level: {:?}, concat: {:?}", level, concat);
+//                 }
+
+//             } else if parameters.iter().all(|x| x.1) {
+//                 println!("22222222222222222222222");
+//                 let result = ParamSequential::new(&curr_problem, &parameters.iter().map(|x| (x.0.as_str(), x.1)).collect(), level, concat);
+//                 all_results.push(result.clone());
+//             }
+
+//         } else if parameters.iter().all(|x| !x.1) {
+//             println!("33333333333333333333333333");
+//             let refined_params = &ActivateNextParam::new(&parameters, &order);
+//             Compositional2::new(&curr_problem, &refined_params, order, &all_results, level, concat);
+//         }
+//         all_results
+//     }
+// }
+
+impl Compositional2 {
+    pub fn new(result: &ParamPlanningResult,
+               problem: &ParamPlanningProblem,
+               params: &Vec<(String, bool)>, 
+               order: &Vec<&str>, 
+               all_results: &Vec<ParamPlanningResult>,
+               level: u32) -> Vec<ParamPlanningResult> {
+    
+        let mut all_results: Vec<ParamPlanningResult> = vec!();
+
+        if !params.iter().all(|x| x.1) {
+            let current_level = level + 1;
+            if result.plan_found {
+                let mut inheritance: Vec<String> = vec!() ;
+                let mut level_results = vec!();
+                let activated_params = &ActivateNextParam::new(&params, &order);
+                let mut concat = 0;
+                for i in 0..=result.trace.len() - 1 {
+                    if i == 0 {
+                        let new_problem = ParamPlanningProblem::new(
+                            format!("problem_l{:?}_c{:?}", current_level, concat), 
+                            problem.vars.clone(),
+                            activated_params.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+                            problem.initial.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+                            ParamStateToPredicate::new(&result.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+                            problem.trans.clone(),
+                            problem.ltl_specs.clone(),
+                            problem.max_steps);
+                        let new_result = ParamSequential::new(&new_problem, &activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(), current_level, concat);
+                        
+                        // assuming plan is found, handle no plan found later
+                        level_results.push(new_result.clone());
+                        match new_result.trace.last() {
+                            Some(x) => inheritance = x.state.clone(),
+                            None => panic!("No tail in the plan!")
+                        }
+                        concat = concat + 1;                         
+                    } else if i == result.trace.len() - 1 {
+                        let new_problem = ParamPlanningProblem::new(
+                            format!("problem_l{:?}_c{:?}", current_level, concat), 
+                            problem.vars.clone(),
+                            activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
+                            ParamStateToPredicate::new(&inheritance.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+                            problem.goal.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+                            problem.trans.clone(),
+                            problem.ltl_specs.clone(),
+                            problem.max_steps);
+                        let new_result = ParamSequential::new(&new_problem, &activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(), current_level, concat);
+                        
+                        // assuming plan is found, handle no plan found later
+                        level_results.push(new_result.clone());
                         concat = concat + 1;
-                        Compositional2::new(&problem, &refined_params, order, &all_results, level, concat);
+                    } else {
+                        let new_problem = ParamPlanningProblem::new(
+                            format!("problem_l{:?}_c{:?}", current_level, concat), 
+                            problem.vars.clone(),
+                            activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
+                            ParamStateToPredicate::new(&inheritance.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+                            ParamStateToPredicate::new(&result.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
+                            problem.trans.clone(),
+                            problem.ltl_specs.clone(),
+                            problem.max_steps);
+                        let new_result = ParamSequential::new(&new_problem, &activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(), current_level, concat);
+
+                        level_results.push(new_result.clone());
+                        match new_result.trace.last() {
+                            Some(x) => inheritance = x.state.clone(),
+                            None => panic!("No tail in the plan!")
+                        }
+                        concat = concat + 1;   
                     }
-                } else {
-                    panic!("No plan found at level: {:?}, concat: {:?}", level, concat);
                 }
-
-            } else if parameters.iter().all(|x| x.1) {
-                println!("22222222222222222222222");
-                let result = ParamSequential::new(&curr_problem, &parameters.iter().map(|x| (x.0.as_str(), x.1)).collect(), level, concat);
-                all_results.push(result.clone());
+                for result in level_results {
+                    // println!("{:?}", level_result);
+                    println!("level: {:?}", result.level);
+                    println!("concat: {:?}", result.concat);
+                    println!("plan_found: {:?}", result.plan_found);
+                    println!("plan_lenght: {:?}", result.plan_length);
+                    println!("time_to_solve: {:?}", result.time_to_solve);
+                    println!("trace: ");
+//              
+                    for t in &result.trace{
+    //              
+                        println!("state: {:?}", t.state);
+                        println!("trans: {:?}", t.trans);
+                        println!("=========================");
+                    }
+                }
             }
-
-        } else if parameters.iter().all(|x| !x.1) {
-            println!("33333333333333333333333333");
-            let refined_params = &ActivateNextParam::new(&parameters, &order);
-            Compositional2::new(&curr_problem, &refined_params, order, &all_results, level, concat);
         }
         all_results
     }
 }
-
 
 impl <'ctx> GetPlanningResultZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
@@ -1573,7 +1668,7 @@ fn test_idea_1_iteration_6(){
     );
     
     let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), false), ("stat".to_string(), false), ("cube".to_string(), true));
-    let refining_order: Vec<&str> = vec!("pos", "stat", "cube"); // opposite for some reason?? fix this
+    let refining_order: Vec<&str> = vec!("pos", "stat", "cube"); // opposite for some reason? fix this
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
     let specs = Predicate::AND(vec!(s1, s2, s3, s4));
 
@@ -1592,69 +1687,69 @@ fn test_idea_1_iteration_6(){
     );
 
     let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
-    // let solutions = Compositional::new(&level_0, &problem, &act, &refining_order, &vec!(level_0.clone()), 0);
-    // let solutions = Compositional2::new(&problem, &act, &refining_order, &vec!(), 0, 0);
 
-    println!("level: {:?}", 0);
-    println!("concat: {:?}", concat);
+    println!("level: {:?}", result.level);
+    println!("concat: {:?}", result.concat);
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
     println!("time_to_solve: {:?}", result.time_to_solve);
     println!("trace: ");
 
     for t in &result.trace{
-    
+ 
         println!("state: {:?}", t.state);
         println!("trans: {:?}", t.trans);
         println!("=========================");
     }
 
-    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    let solutions = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
 
-    let act = ActivateNextParam::new(&act, &refining_order);
-    let solutions = GenerateAndSolveLevel::new(&result, &problem, &act, 1);
+    // println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 
-    for s in solutions.clone() {
-        println!("level: {:?}", 1);
-        println!("concat: {:?}", concat);
-        println!("plan_found: {:?}", s.plan_found);
-        println!("plan_lenght: {:?}", s.plan_length);
-        println!("time_to_solve: {:?}", s.time_to_solve);
-        println!("trace: ");
-
-        for t in &s.trace{
-        
-            println!("state: {:?}", t.state);
-            println!("trans: {:?}", t.trans);
-            println!("=========================");
-        }
-        concat = concat + 1;
-    }
-
-    concat = 0;
-    println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++");
-
-    let mut solutions2 = vec!();
-    let act = ActivateNextParam::new(&act, &refining_order);
-    for sol in solutions.clone() {
-        solutions2.extend(GenerateAndSolveLevel::new(&sol, &problem, &act, 1));
-    }
+    // let act = ActivateNextParam::new(&act, &refining_order);
     // let solutions = GenerateAndSolveLevel::new(&result, &problem, &act, 1);
 
-    for s in solutions2 {
-        println!("level: {:?}", 2);
-        println!("concat: {:?}", concat);
-        println!("plan_found: {:?}", s.plan_found);
-        println!("plan_lenght: {:?}", s.plan_length);
-        println!("time_to_solve: {:?}", s.time_to_solve);
-        println!("trace: ");
+    // for s in solutions.clone() {
+    //     println!("level: {:?}", 1);
+    //     println!("concat: {:?}", concat);
+    //     println!("plan_found: {:?}", s.plan_found);
+    //     println!("plan_lenght: {:?}", s.plan_length);
+    //     println!("time_to_solve: {:?}", s.time_to_solve);
+    //     println!("trace: ");
 
-        for t in &s.trace{
+    //     for t in &s.trace{
         
-            println!("state: {:?}", t.state);
-            println!("trans: {:?}", t.trans);
-            println!("=========================");
-        }
-        concat = concat +1;
-    }
+    //         println!("state: {:?}", t.state);
+    //         println!("trans: {:?}", t.trans);
+    //         println!("=========================");
+    //     }
+    //     concat = concat + 1;
+    // }
+
+    // concat = 0;
+    // println!("+++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+
+    // let mut solutions2 = vec!();
+    // let act = ActivateNextParam::new(&act, &refining_order);
+    // for sol in solutions.clone() {
+    //     solutions2.extend(GenerateAndSolveLevel::new(&sol, &problem, &act, 1));
+    // }
+    // // let solutions = GenerateAndSolveLevel::new(&result, &problem, &act, 1);
+
+    // for s in solutions2 {
+    //     println!("level: {:?}", 2);
+    //     println!("concat: {:?}", concat);
+    //     println!("plan_found: {:?}", s.plan_found);
+    //     println!("plan_lenght: {:?}", s.plan_length);
+    //     println!("time_to_solve: {:?}", s.time_to_solve);
+    //     println!("trace: ");
+
+    //     for t in &s.trace{
+        
+    //         println!("state: {:?}", t.state);
+    //         println!("trans: {:?}", t.trans);
+    //         println!("=========================");
+    //     }
+    //     concat = concat +1;
+    // }
 }
