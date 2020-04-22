@@ -1054,6 +1054,54 @@ impl Compositional {
 //     }
 // }
 
+// pub struct ParamPlanningResult {
+//     pub plan_found: bool,
+//     pub plan_length: u32,
+//     pub level: u32,
+//     pub concat: u32,
+//     pub trace: Vec<PlanningFrame>,
+//     pub time_to_solve: std::time::Duration,
+// }
+
+impl Concatenate {
+    pub fn new(results: &Vec<ParamPlanningResult>) -> ParamPlanningResult {
+        let conc_plan_found = match results.iter().all(|x| x.plan_found) {
+            true => true,
+            false => false
+        };
+        let conc_plan_lenght = results.iter().map(|x| x.plan_length).sum();
+        let conc_plan_level = results[1].level;
+        let conc_plan_concat:u32 = 123456789;
+        let mut conc_plan_trace: Vec<PlanningFrame> = vec!();
+
+        for res in results {
+            if results.iter().position(|x| x == res).unwrap() == 0 {
+                for tr in res.trace.clone() {
+                    conc_plan_trace.push(tr)
+                }
+            } else {
+                for tr in res.trace.clone() {
+                    if res.trace.iter().position(|x| *x == tr).unwrap() != 0 {
+                        
+                        conc_plan_trace.push(tr)
+                    }
+                }
+            }
+        };
+        let conc_plan_duration = results.iter().map(|x| x.time_to_solve).sum();
+
+        ParamPlanningResult {
+            plan_found: conc_plan_found,
+            plan_length: conc_plan_lenght,
+            level: conc_plan_level,
+            concat: conc_plan_concat,
+            trace: conc_plan_trace,
+            time_to_solve: conc_plan_duration
+        }
+    }
+}
+
+
 impl Compositional2 {
     pub fn new(result: &ParamPlanningResult,
                problem: &ParamPlanningProblem,
@@ -1064,8 +1112,9 @@ impl Compositional2 {
     
         let mut all_results: Vec<ParamPlanningResult> = vec!();
 
+        let current_level = level + 1;
         if !params.iter().all(|x| x.1) {
-            let current_level = level + 1;
+            
             if result.plan_found {
                 let mut inheritance: Vec<String> = vec!() ;
                 let mut level_results = vec!();
@@ -1126,7 +1175,8 @@ impl Compositional2 {
                         concat = concat + 1;   
                     }
                 }
-                for result in level_results {
+
+                for result in &level_results {
                     // println!("{:?}", level_result);
                     println!("level: {:?}", result.level);
                     println!("concat: {:?}", result.concat);
@@ -1142,6 +1192,23 @@ impl Compositional2 {
                         println!("=========================");
                     }
                 }
+
+                let concat_res = Concatenate::new(&level_results);
+                println!("level: {:?}", concat_res.level);
+                    println!("concat: {:?}", concat_res.concat);
+                    println!("plan_found: {:?}", concat_res.plan_found);
+                    println!("plan_lenght: {:?}", concat_res.plan_length);
+                    println!("time_to_solve: {:?}", concat_res.time_to_solve);
+                    println!("trace: ");
+//              
+                for t in &concat_res.trace{
+    //             
+                    println!("state: {:?}", t.state);
+                    println!("trans: {:?}", t.trans);
+                    println!("=========================");
+                }
+
+                Compositional2::new(&concat_res, &problem, &activated_params, &order, &all_results, current_level);
             }
         }
         all_results
