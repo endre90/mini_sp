@@ -147,6 +147,8 @@ pub struct GenerateParamProblems {}
 
 pub struct GenerateAndSolveLevel {}
 
+pub struct RemoveLoops {}
+
 // pub struct GenerateProblem {}
 
 pub struct StateToPredicate {}
@@ -766,15 +768,138 @@ impl Concatenate {
     }
 }
 
+// remove loops playground:
+// fn main() {
+//     let mut has_duplicates: Vec<(Vec<u32>, usize, usize)> = vec!();
+//         let coll: Vec<Vec<u32>> = vec!(
+//         vec!(1, 2, 4),
+//         vec!(3, 2, 4),
+//         vec!(4, 2, 1),
+//         vec!(1, 2, 5),
+//         vec!(1, 5, 4),
+//         vec!(5, 3, 2),
+//         vec!(5, 3, 3),
+//         vec!(5, 3, 4),
+//         vec!(5, 3, 2),
+//         vec!(5, 3, 6)
+//         );
+//         // 1, 2, 3, 4, 5, 1, 5, 6, 3, 4, 1, 3, 4, 52, 3, 4);
+//         // maybe sort everything first:
+//         let mut coll_sorted: Vec<Vec<u32>> = vec!();
+//         for asdf in &coll {
+//             let mut clnd = asdf.clone();
+//             clnd.sort();
+//             coll_sorted.push(clnd);
+//         }
+        
+//         println!("coll {:?}", coll);
+//         println!("coll_sorted {:?}", coll_sorted);
+        
+//         for c in &coll_sorted {
+//             for c2 in &coll_sorted {
+//                 if c == c2 {
+//                     has_duplicates.push((
+//                         c.clone(),
+//                         match coll_sorted.iter().position(|x| x == c) {
+//                             Some(y) => y as usize,
+//                             None => 123456789
+//                         },
+//                         match coll_sorted.iter().rposition(|x| x == c) {
+//                             Some(y) => y as usize,
+//                             None => 123456789
+//                         }
+//                     ))
+//                 }
+//             }
+//         }
+        
+//         has_duplicates.sort();
+//         has_duplicates.dedup();
+//         let mut has_duplicates_fltrd: Vec<(Vec<u32>, usize, usize)> = vec!();
+//         let mut fixed: Vec<Vec<u32>> = vec!();
+        
+//         for par in &has_duplicates {
+//             if par.1 != par.2 {
+//                 has_duplicates_fltrd.push(par.clone());
+//             }
+//         }
+        
+//         while has_duplicates_fltrd.len() != 0 {
+//             fixed = coll_sorted.drain(has_duplicates_fltrd[0].1..has_duplicates_fltrd[0].2).collect();
+//             has_duplicates_fltrd.remove(0);
+//             println!("m has_duplicates_fltrd{:?}", has_duplicates_fltrd);
+//             println!("m coll_sorted: {:?}", coll_sorted);
+//             if has_duplicates_fltrd.len() != 0 {
+//                 has_duplicates_fltrd[0].1 = match coll_sorted.iter().position(|x| x == &has_duplicates_fltrd[0].0) {
+//                             Some(y) => y as usize,
+//                             None => 123456789
+//                         };
+//                 has_duplicates_fltrd[0].2 = match coll_sorted.iter().rposition(|x| x == &has_duplicates_fltrd[0].0) {
+//                             Some(y) => y as usize,
+//                             None => 123456789
+//                         };
+//                     }
+                
+//         }
+        
+//         println!("asdfasdfasdfasdf");
+    
+//         println!("{:?}", has_duplicates_fltrd);
+//         println!("fixed: {:?}", coll_sorted);
+//     }
+
+
+impl RemoveLoops {
+    pub fn new(result: &ParamPlanningResult) -> () { //ParamPlanningResult {
+        let mut duplicates: (Vec<String>, Vec<u32>) = (vec!(), vec!());
+        for tr in result.trace.clone() {
+            let dup: Vec<PlanningFrame> = result.trace.iter().filter(|x| x.state.clone().sort() == tr.state.clone().sort()).map(|x| x.clone()).collect();
+            for d in dup {
+                println!("{:?}", d);
+                println!("=====================================");
+            }
+            
+        }
+        
+    }
+}
+
+
+// impl RemoveLoops {
+//     pub fn new(result: &ParamPlanningResult) -> () { //ParamPlanningResult {
+//         // v_other.iter().position(|e2| e1 == *e2) {]
+//             // keep_v.iter().any(|x| ast_to_string_z3!(&ctx, a).contains(&x.n)) 
+//         // let copies_at = result.trace.iter().position(|x| x == )
+//         let mut loopers = vec!();
+//         for mut tr1 in result.trace.clone() {
+//             let mut looper: (Vec<String>, Vec<usize>) = (tr1.state.clone(), vec!());
+//             for mut tr2 in result.trace.clone() {
+//                 if tr1.state.sort() == tr2.state.sort() {
+//                     if !(result.trace.iter().position(|x| *x == tr1) == result.trace.iter().position(|x| *x == tr2)) {
+//                         match result.trace.iter().position(|x| *x == tr2) {
+//                             Some(x) => looper.1.push(x),
+//                             None => panic!("asdfasdf")
+//                         }
+//                         // looper.1.push(result.trace.iter().position(|&x| x == tr2));
+//                     }
+//                 }
+//             }
+//             loopers.push(looper);
+//         }
+//         println!("{:?}", loopers);
+//     }
+// }
+
 impl Compositional2 {
     pub fn new(result: &ParamPlanningResult,
                problem: &ParamPlanningProblem,
                params: &Vec<(String, bool)>, 
                order: &Vec<&str>, 
                all_results: &Vec<ParamPlanningResult>,
-               level: u32) -> Vec<ParamPlanningResult> {
+               level: u32) -> ParamPlanningResult {
     
-        let mut all_results: Vec<ParamPlanningResult> = vec!();
+        let all_results: Vec<ParamPlanningResult> = vec!();
+        let mut final_result: ParamPlanningResult = result.clone();
 
         let current_level = level + 1;
         if !params.iter().all(|x| x.1) {
@@ -883,42 +1008,43 @@ impl Compositional2 {
                         concat = concat + 1;   
                 }
 
-                for result in &level_results {
-                    // println!("{:?}", level_result);
-                    println!("level: {:?}", result.level);
-                    println!("concat: {:?}", result.concat);
-                    println!("plan_found: {:?}", result.plan_found);
-                    println!("plan_lenght: {:?}", result.plan_length);
-                    println!("time_to_solve: {:?}", result.time_to_solve);
-                    println!("trace: ");
-//              
-                    for t in &result.trace{
-    //              
-                        println!("state: {:?}", t.state);
-                        println!("trans: {:?}", t.trans);
-                        println!("=========================");
-                    }
-                }
+//                 for result in &level_results {
+//                     // println!("{:?}", level_result);
+//                     println!("level: {:?}", result.level);
+//                     println!("concat: {:?}", result.concat);
+//                     println!("plan_found: {:?}", result.plan_found);
+//                     println!("plan_lenght: {:?}", result.plan_length);
+//                     println!("time_to_solve: {:?}", result.time_to_solve);
+//                     println!("trace: ");
+// //              
+//                     for t in &result.trace{
+//     //              
+//                         println!("state: {:?}", t.state);
+//                         println!("trans: {:?}", t.trans);
+//                         println!("=========================");
+//                     }
+//                 }
 
-                let concat_res = Concatenate::new(&level_results);
-                println!("level: {:?}", concat_res.level);
-                    println!("concat: {:?}", concat_res.concat);
-                    println!("plan_found: {:?}", concat_res.plan_found);
-                    println!("plan_lenght: {:?}", concat_res.plan_length);
-                    println!("time_to_solve: {:?}", concat_res.time_to_solve);
-                    println!("trace: ");
-//              
-                for t in &concat_res.trace{
-    //             
-                    println!("state: {:?}", t.state);
-                    println!("trans: {:?}", t.trans);
-                    println!("=========================");
-                }
+                final_result = Concatenate::new(&level_results);
+//                 println!("level: {:?}", final_result.level);
+//                     println!("concat: {:?}", final_result.concat);
+//                     println!("plan_found: {:?}", final_result.plan_found);
+//                     println!("plan_lenght: {:?}", final_result.plan_length);
+//                     println!("time_to_solve: {:?}", final_result.time_to_solve);
+//                     println!("trace: ");
+// //              
+//                 for t in &final_result.trace{
+//     //             
+//                     println!("state: {:?}", t.state);
+//                     println!("trans: {:?}", t.trans);
+//                     println!("=========================");
+//                 }
 
-                Compositional2::new(&concat_res, &problem, &activated_params, &order, &all_results, current_level);
+                final_result = Compositional2::new(&final_result, &problem, &activated_params, &order, &all_results, current_level);
+                
             }
         }
-        all_results
+        final_result
     }
 }
 
@@ -1491,9 +1617,25 @@ fn test_idea_1_iteration_5(){
 
     let now = Instant::now();
         
-    let solutions = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
+    let solution = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
+
+    RemoveLoops::new(&solution);
 
     let comp_planning_time = now.elapsed();
+
+    println!("comp_level: {:?}", solution.level);
+    println!("comp_concat: {:?}", solution.concat);
+    println!("comp_plan_found: {:?}", solution.plan_found);
+    println!("comp_plan_lenght: {:?}", solution.plan_length);
+    println!("comp_time_to_solve: {:?}", solution.time_to_solve);
+    println!("comp_trace: ");
+
+    for t in &solution.trace{
+ 
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
 
     println!("TOTAL SEQUENTIAL TIME: {:?}", seq_planning_time);
     println!("TOTAL COMPOSITIONAL TIME: {:?}", comp_planning_time);
@@ -2207,9 +2349,23 @@ fn test_idea_1_iteration_6(){
 
     let now = Instant::now();
         
-    let solutions = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
+    let solution = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
 
     let comp_planning_time = now.elapsed();
+
+    println!("comp_level: {:?}", solution.level);
+    println!("comp_concat: {:?}", solution.concat);
+    println!("comp_plan_found: {:?}", solution.plan_found);
+    println!("comp_plan_lenght: {:?}", solution.plan_length);
+    println!("comp_time_to_solve: {:?}", solution.time_to_solve);
+    println!("comp_trace: ");
+
+    for t in &solution.trace{
+ 
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
 
     println!("TOTAL SEQUENTIAL TIME: {:?}", seq_planning_time);
     println!("TOTAL COMPOSITIONAL TIME: {:?}", comp_planning_time);
