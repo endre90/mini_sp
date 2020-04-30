@@ -54,7 +54,7 @@ pub struct ParamPlanningProblem {
     max_steps: u32
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
 pub struct PlanningFrame {
     state: Vec<String>,
     trans: String,
@@ -610,8 +610,6 @@ impl ParamSequential {
     }   
 }
 
-// 
-
 impl ActivateNextParam {
     pub fn new(params: &Vec<(String, bool)>, order: &Vec<&str>) -> Vec<(String, bool)> {
         let mut index_to_update = 0;
@@ -848,47 +846,77 @@ impl Concatenate {
 //         println!("fixed: {:?}", coll_sorted);
 //     }
 
-
+// add the duration of this process as well
 impl RemoveLoops {
-    pub fn new(result: &ParamPlanningResult) -> () { //ParamPlanningResult {
-        let mut duplicates: (Vec<String>, Vec<u32>) = (vec!(), vec!());
-        for tr in result.trace.clone() {
-            let dup: Vec<PlanningFrame> = result.trace.iter().filter(|x| x.state.clone().sort() == tr.state.clone().sort()).map(|x| x.clone()).collect();
-            for d in dup {
-                println!("{:?}", d);
-                println!("=====================================");
-            }
-            
+    pub fn new(result: &ParamPlanningResult) -> ParamPlanningResult { 
+        let mut duplicates: Vec<(Vec<String>, usize, usize)> = vec!();
+        // let mut sorted_result = result.clone();
+        let mut sorted_trace: Vec<PlanningFrame> = vec!();
+        let mut has_duplicates: Vec<(PlanningFrame, usize, usize)> = vec!();
+
+        for mut r in &result.trace {
+            let mut sorted_state = r.state.clone();
+            sorted_state.sort();
+            let frame: PlanningFrame = PlanningFrame::new(sorted_state.iter().map(|x| x.as_str()).collect(), &r.trans);
+            sorted_trace.push(frame);
         }
+
+        for tr1 in &sorted_trace {
+            for tr2 in &sorted_trace {
+                if tr1.state == tr2.state {
+                    let start = match sorted_trace.iter().position(|x| x.state == tr1.state) {
+                        Some(y) => y as usize,
+                        None => 666
+                    };
+                    let finish = match sorted_trace.iter().rposition(|x| x.state == tr1.state) {
+                        Some(y) => y as usize,
+                        None => 666
+                    };
+                    if start != finish {
+                        if !has_duplicates.iter().any(|x| x.0.state == tr1.state) {
+                            has_duplicates.push((tr1.clone(), start, finish))
+                        }
+                        
+                    }
+                }
+            }
+        }
+
+        has_duplicates.sort();
+        has_duplicates.dedup();
+
+        let mut fixed: Vec<PlanningFrame> = vec!();
+
         
+
+        while has_duplicates.len() != 0 {
+            // println!("DUPLICATES: {:?}\n", has_duplicates);
+            // println!("SORTED and FIXED: {:?}\n", sorted_trace);
+            // println!("====================================");
+            fixed = sorted_trace.drain(has_duplicates[0].1 + 1..has_duplicates[0].2 + 1).collect();
+            has_duplicates.remove(0);
+            if has_duplicates.len() != 0 {
+                has_duplicates[0].1 = match sorted_trace.iter().position(|x| x.state == has_duplicates[0].0.state) {
+                    Some(y) => y as usize,
+                    None => 123456789
+                };
+                has_duplicates[0].2 = match sorted_trace.iter().rposition(|x| x.state == has_duplicates[0].0.state) {
+                    Some(y) => y as usize,
+                    None => 123456789
+                };
+            }
+        }
+
+        ParamPlanningResult {
+            plan_found: result.plan_found,
+            plan_length: sorted_trace.len() as u32 - 1,
+            level: result.level,
+            concat: result.concat,
+            trace: sorted_trace,
+            time_to_solve: result.time_to_solve
+        }        
     }
 }
-
-
-// impl RemoveLoops {
-//     pub fn new(result: &ParamPlanningResult) -> () { //ParamPlanningResult {
-//         // v_other.iter().position(|e2| e1 == *e2) {]
-//             // keep_v.iter().any(|x| ast_to_string_z3!(&ctx, a).contains(&x.n)) 
-//         // let copies_at = result.trace.iter().position(|x| x == )
-//         let mut loopers = vec!();
-//         for mut tr1 in result.trace.clone() {
-//             let mut looper: (Vec<String>, Vec<usize>) = (tr1.state.clone(), vec!());
-//             for mut tr2 in result.trace.clone() {
-//                 if tr1.state.sort() == tr2.state.sort() {
-//                     if !(result.trace.iter().position(|x| *x == tr1) == result.trace.iter().position(|x| *x == tr2)) {
-//                         match result.trace.iter().position(|x| *x == tr2) {
-//                             Some(x) => looper.1.push(x),
-//                             None => panic!("asdfasdf")
-//                         }
-//                         // looper.1.push(result.trace.iter().position(|&x| x == tr2));
-//                     }
-//                 }
-//             }
-//             loopers.push(looper);
-//         }
-//         println!("{:?}", loopers);
-//     }
-// }
 
 impl Compositional2 {
     pub fn new(result: &ParamPlanningResult,
@@ -1597,6 +1625,8 @@ fn test_idea_1_iteration_5(){
         println!("=========================");
     }
 
+    // 
+
     let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), false), ("cube".to_string(), false));
     let refining_order: Vec<&str> = vec!("cube", "stat", "pos"); // opposite for some reason? fix this
     let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
@@ -1619,7 +1649,8 @@ fn test_idea_1_iteration_5(){
         
     let solution = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
 
-    RemoveLoops::new(&solution);
+    // RemoveLoops::new(&solution);
+    let sorted_result = RemoveLoops::new(&solution);
 
     let comp_planning_time = now.elapsed();
 
@@ -1637,12 +1668,32 @@ fn test_idea_1_iteration_5(){
         println!("=========================");
     }
 
+    
+
+    println!("sorted_level: {:?}", sorted_result.level);
+    println!("sorted_concat: {:?}", sorted_result.concat);
+    println!("sorted_plan_found: {:?}", sorted_result.plan_found);
+    println!("sorted_plan_lenght: {:?}", sorted_result.plan_length);
+    println!("sorted_time_to_solve: {:?}", sorted_result.time_to_solve);
+    println!("sorted_trace: ");
+
+    for t in &sorted_result.trace{
+    
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
+
     println!("TOTAL SEQUENTIAL TIME: {:?}", seq_planning_time);
     println!("TOTAL COMPOSITIONAL TIME: {:?}", comp_planning_time);
 }
 
 #[test]
 fn test_idea_1_iteration_6(){
+
+    // a global constraint should be made that changea in the system are one at a time
+    // so for instance, if you're activating a robot and a gripper, you have to finish activating
+    // one first and then actvate another. This maybe makes sense in general
     
     let pose_domain = vec!("buffer", "home", "table");
     let gripper_pose_domain = vec!("cube", "ball", "closed", "open");
@@ -2270,6 +2321,26 @@ fn test_idea_1_iteration_6(){
             )
         )
     );
+
+    // 4. gripper not moving, so...:
+    let s5 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::OR(
+                        vec!(
+                            grip_pos_ball.clone(),
+                            grip_pos_closed.clone(),
+                            set_grip_pos_ball.clone(),
+                            set_grip_pos_closed.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    
     
     let initial = vec!(
         ("pos", pos_stable.clone()),
@@ -2292,7 +2363,7 @@ fn test_idea_1_iteration_6(){
     ("grip_pos".to_string(), true), ("grip_stat".to_string(), true));
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14,
         t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26);
-    let specs = Predicate::AND(vec!(s1, s2, s3, s4));
+    let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5));
 
     let mut concat: u32 = 0;
     let mut level: u32 = 0;
@@ -2351,6 +2422,8 @@ fn test_idea_1_iteration_6(){
         
     let solution = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
 
+    let sorted_result = RemoveLoops::new(&solution);
+
     let comp_planning_time = now.elapsed();
 
     println!("comp_level: {:?}", solution.level);
@@ -2362,6 +2435,22 @@ fn test_idea_1_iteration_6(){
 
     for t in &solution.trace{
  
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    
+
+    println!("sorted_level: {:?}", sorted_result.level);
+    println!("sorted_concat: {:?}", sorted_result.concat);
+    println!("sorted_plan_found: {:?}", sorted_result.plan_found);
+    println!("sorted_plan_lenght: {:?}", sorted_result.plan_length);
+    println!("sorted_time_to_solve: {:?}", sorted_result.time_to_solve);
+    println!("sorted_trace: ");
+
+    for t in &sorted_result.trace{
+    
         println!("state: {:?}", t.state);
         println!("trans: {:?}", t.trans);
         println!("=========================");
