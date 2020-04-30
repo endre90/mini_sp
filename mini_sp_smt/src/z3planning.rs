@@ -766,86 +766,6 @@ impl Concatenate {
     }
 }
 
-// remove loops playground:
-// fn main() {
-//     let mut has_duplicates: Vec<(Vec<u32>, usize, usize)> = vec!();
-//         let coll: Vec<Vec<u32>> = vec!(
-//         vec!(1, 2, 4),
-//         vec!(3, 2, 4),
-//         vec!(4, 2, 1),
-//         vec!(1, 2, 5),
-//         vec!(1, 5, 4),
-//         vec!(5, 3, 2),
-//         vec!(5, 3, 3),
-//         vec!(5, 3, 4),
-//         vec!(5, 3, 2),
-//         vec!(5, 3, 6)
-//         );
-//         // 1, 2, 3, 4, 5, 1, 5, 6, 3, 4, 1, 3, 4, 52, 3, 4);
-//         // maybe sort everything first:
-//         let mut coll_sorted: Vec<Vec<u32>> = vec!();
-//         for asdf in &coll {
-//             let mut clnd = asdf.clone();
-//             clnd.sort();
-//             coll_sorted.push(clnd);
-//         }
-        
-//         println!("coll {:?}", coll);
-//         println!("coll_sorted {:?}", coll_sorted);
-        
-//         for c in &coll_sorted {
-//             for c2 in &coll_sorted {
-//                 if c == c2 {
-//                     has_duplicates.push((
-//                         c.clone(),
-//                         match coll_sorted.iter().position(|x| x == c) {
-//                             Some(y) => y as usize,
-//                             None => 123456789
-//                         },
-//                         match coll_sorted.iter().rposition(|x| x == c) {
-//                             Some(y) => y as usize,
-//                             None => 123456789
-//                         }
-//                     ))
-//                 }
-//             }
-//         }
-        
-//         has_duplicates.sort();
-//         has_duplicates.dedup();
-//         let mut has_duplicates_fltrd: Vec<(Vec<u32>, usize, usize)> = vec!();
-//         let mut fixed: Vec<Vec<u32>> = vec!();
-        
-//         for par in &has_duplicates {
-//             if par.1 != par.2 {
-//                 has_duplicates_fltrd.push(par.clone());
-//             }
-//         }
-        
-//         while has_duplicates_fltrd.len() != 0 {
-//             fixed = coll_sorted.drain(has_duplicates_fltrd[0].1..has_duplicates_fltrd[0].2).collect();
-//             has_duplicates_fltrd.remove(0);
-//             println!("m has_duplicates_fltrd{:?}", has_duplicates_fltrd);
-//             println!("m coll_sorted: {:?}", coll_sorted);
-//             if has_duplicates_fltrd.len() != 0 {
-//                 has_duplicates_fltrd[0].1 = match coll_sorted.iter().position(|x| x == &has_duplicates_fltrd[0].0) {
-//                             Some(y) => y as usize,
-//                             None => 123456789
-//                         };
-//                 has_duplicates_fltrd[0].2 = match coll_sorted.iter().rposition(|x| x == &has_duplicates_fltrd[0].0) {
-//                             Some(y) => y as usize,
-//                             None => 123456789
-//                         };
-//                     }
-                
-//         }
-        
-//         println!("asdfasdfasdfasdf");
-    
-//         println!("{:?}", has_duplicates_fltrd);
-//         println!("fixed: {:?}", coll_sorted);
-//     }
-
 // add the duration of this process as well
 impl RemoveLoops {
     pub fn new(result: &ParamPlanningResult) -> ParamPlanningResult { 
@@ -890,20 +810,34 @@ impl RemoveLoops {
         
 
         while has_duplicates.len() != 0 {
-            // println!("DUPLICATES: {:?}\n", has_duplicates);
+            println!("DUPLICATES: {:?}\n", has_duplicates);
             // println!("SORTED and FIXED: {:?}\n", sorted_trace);
             // println!("====================================");
-            fixed = sorted_trace.drain(has_duplicates[0].1 + 1..has_duplicates[0].2 + 1).collect();
-            has_duplicates.remove(0);
-            if has_duplicates.len() != 0 {
-                has_duplicates[0].1 = match sorted_trace.iter().position(|x| x.state == has_duplicates[0].0.state) {
-                    Some(y) => y as usize,
-                    None => 123456789
-                };
-                has_duplicates[0].2 = match sorted_trace.iter().rposition(|x| x.state == has_duplicates[0].0.state) {
-                    Some(y) => y as usize,
-                    None => 123456789
-                };
+            if has_duplicates[0].1 != 123456789 {
+                fixed = sorted_trace.drain(has_duplicates[0].1 + 1..has_duplicates[0].2 + 1).collect();
+                has_duplicates.remove(0);
+                if has_duplicates.len() != 0 {
+                    has_duplicates[0].1 = match sorted_trace.iter().position(|x| x.state == has_duplicates[0].0.state) {
+                        Some(y) => y as usize,
+                        None => 123456789
+                    };
+                    has_duplicates[0].2 = match sorted_trace.iter().rposition(|x| x.state == has_duplicates[0].0.state) {
+                        Some(y) => y as usize,
+                        None => 123456789
+                    };
+                }
+            } else {
+                has_duplicates.remove(0);
+                if has_duplicates.len() != 0 {
+                    has_duplicates[0].1 = match sorted_trace.iter().position(|x| x.state == has_duplicates[0].0.state) {
+                        Some(y) => y as usize,
+                        None => 123456789
+                    };
+                    has_duplicates[0].2 = match sorted_trace.iter().rposition(|x| x.state == has_duplicates[0].0.state) {
+                        Some(y) => y as usize,
+                        None => 123456789
+                    };
+                }
             }
         }
 
@@ -1036,40 +970,9 @@ impl Compositional2 {
                         concat = concat + 1;   
                 }
 
-//                 for result in &level_results {
-//                     // println!("{:?}", level_result);
-//                     println!("level: {:?}", result.level);
-//                     println!("concat: {:?}", result.concat);
-//                     println!("plan_found: {:?}", result.plan_found);
-//                     println!("plan_lenght: {:?}", result.plan_length);
-//                     println!("time_to_solve: {:?}", result.time_to_solve);
-//                     println!("trace: ");
-// //              
-//                     for t in &result.trace{
-//     //              
-//                         println!("state: {:?}", t.state);
-//                         println!("trans: {:?}", t.trans);
-//                         println!("=========================");
-//                     }
-//                 }
-
                 final_result = Concatenate::new(&level_results);
-//                 println!("level: {:?}", final_result.level);
-//                     println!("concat: {:?}", final_result.concat);
-//                     println!("plan_found: {:?}", final_result.plan_found);
-//                     println!("plan_lenght: {:?}", final_result.plan_length);
-//                     println!("time_to_solve: {:?}", final_result.time_to_solve);
-//                     println!("trace: ");
-// //              
-//                 for t in &final_result.trace{
-//     //             
-//                     println!("state: {:?}", t.state);
-//                     println!("trans: {:?}", t.trans);
-//                     println!("=========================");
-//                 }
-
-                final_result = Compositional2::new(&final_result, &problem, &activated_params, &order, &all_results, current_level);
-                
+                let delooped_and_sorted = RemoveLoops::new(&final_result);
+                final_result = Compositional2::new(&delooped_and_sorted, &problem, &activated_params, &order, &all_results, current_level);   
             }
         }
         final_result
@@ -1627,8 +1530,8 @@ fn test_idea_1_iteration_5(){
 
     // 
 
-    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), false), ("cube".to_string(), false));
-    let refining_order: Vec<&str> = vec!("cube", "stat", "pos"); // opposite for some reason? fix this
+    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), false), ("stat".to_string(), true), ("cube".to_string(), false));
+    let refining_order: Vec<&str> = vec!("pos", "cube", "stat"); // opposite for some reason? fix this
     let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
 
     println!("level: {:?}", result.level);
@@ -2331,8 +2234,10 @@ fn test_idea_1_iteration_6(){
                         vec!(
                             grip_pos_ball.clone(),
                             grip_pos_closed.clone(),
+                            grip_pos_open.clone(),
                             set_grip_pos_ball.clone(),
-                            set_grip_pos_closed.clone()
+                            set_grip_pos_closed.clone(),
+                            set_grip_pos_open.clone()
                         )
                     )
                 )
@@ -2340,6 +2245,39 @@ fn test_idea_1_iteration_6(){
         )
     );
 
+    // one operation is executing at a time:
+    let s6 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            not_grip_stat_stable.clone(),
+                            not_stat_stable.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+
+    // additional constraint to make the plans be the same:
+    // robot has to be active before we activate the gripper... how can we avoid adding this constraint and still have the same plan?
+    let s7 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            grip_stat_active.clone(),
+                            not_stat_active.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
     
     
     let initial = vec!(
@@ -2363,7 +2301,7 @@ fn test_idea_1_iteration_6(){
     ("grip_pos".to_string(), true), ("grip_stat".to_string(), true));
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14,
         t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26);
-    let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5));
+    let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s6, s7));
 
     let mut concat: u32 = 0;
     let mut level: u32 = 0;
@@ -2399,24 +2337,24 @@ fn test_idea_1_iteration_6(){
         println!("=========================");
     }
 
-    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), false), ("stat".to_string(), false), ("grip_stat".to_string(), false), 
- ("cube".to_string(), true));
-    let refining_order: Vec<&str> = vec!(/*"grip_pos",*/ "pos", "grip_stat", "stat", "cube"); // opposite for some reason? fix this
+    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), false), ("grip_stat".to_string(), false), 
+ ("cube".to_string(), false));
+    let refining_order: Vec<&str> = vec!(/*"grip_pos",*/ "cube", "grip_stat", "stat", "pos"); // opposite for some reason? fix this
     let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
 
-    println!("level: {:?}", result.level);
-    println!("concat: {:?}", result.concat);
-    println!("plan_found: {:?}", result.plan_found);
-    println!("plan_lenght: {:?}", result.plan_length);
-    println!("time_to_solve: {:?}", result.time_to_solve);
-    println!("trace: ");
+    // println!("level: {:?}", result.level);
+    // println!("concat: {:?}", result.concat);
+    // println!("plan_found: {:?}", result.plan_found);
+    // println!("plan_lenght: {:?}", result.plan_length);
+    // println!("time_to_solve: {:?}", result.time_to_solve);
+    // println!("trace: ");
 
-    for t in &result.trace{
+    // for t in &result.trace{
  
-        println!("state: {:?}", t.state);
-        println!("trans: {:?}", t.trans);
-        println!("=========================");
-    }
+    //     println!("state: {:?}", t.state);
+    //     println!("trans: {:?}", t.trans);
+    //     println!("=========================");
+    // }
 
     let now = Instant::now();
         
