@@ -2337,9 +2337,9 @@ fn test_idea_1_iteration_6(){
         println!("=========================");
     }
 
-    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), false), ("grip_stat".to_string(), false), 
- ("cube".to_string(), false));
-    let refining_order: Vec<&str> = vec!(/*"grip_pos",*/ "cube", "grip_stat", "stat", "pos"); // opposite for some reason? fix this
+    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), false), ("stat".to_string(), false), ("grip_stat".to_string(), false), 
+ ("cube".to_string(), true));
+    let refining_order: Vec<&str> = vec!(/*"grip_pos",*/ "pos", "grip_stat", "stat", "cube"); // opposite for some reason? fix this
     let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
 
     // println!("level: {:?}", result.level);
@@ -2887,3 +2887,1819 @@ fn test_idea_1_iteration_6(){
 //     println!("TOTAL SEQUENTIAL TIME: {:?}", seq_planning_time);
 //     println!("TOTAL COMPOSITIONAL TIME: {:?}", comp_planning_time);
 // }
+
+
+
+// TESTS FOR THE ETFA2020 PAPER AFTER THIS POINT
+#[test]
+fn example_1_sequential(){
+    
+    let pose_domain = vec!("buffer", "home", "table");
+    let stat_domain = vec!("active", "idle");
+    let buffer_domain = vec!("cube", "ball", "empty");
+    let gripper_domain = vec!("cube", "ball", "empty");
+    let table_domain = vec!("cube", "ball", "empty");
+
+    // var group pos
+    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
+    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
+
+    // var group stat
+    let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
+    let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
+
+    // var group cube, have to think of something better
+    let buffer = Variable::new("buffer_cube", "buffer", buffer_domain.clone());
+    let gripper = Variable::new("gripper_cube", "gripper", gripper_domain.clone());
+    let table = Variable::new("table_cube", "table", table_domain.clone());
+
+    // act stat predicates
+    let stat_active = Predicate::EQVAL(act_stat.clone(), String::from("active"));
+    let stat_idle = Predicate::EQVAL(act_stat.clone(), String::from("idle"));
+    let not_stat_active = Predicate::NOT(vec!(stat_active.clone()));
+    let not_stat_idle = Predicate::NOT(vec!(stat_idle.clone()));
+
+    // ref stat predicates
+    let set_stat_active = Predicate::EQVAL(ref_stat.clone(), String::from("active"));
+    let set_stat_idle = Predicate::EQVAL(ref_stat.clone(), String::from("idle"));
+    let not_set_stat_active = Predicate::NOT(vec!(set_stat_active.clone()));
+    let not_set_stat_idle = Predicate::NOT(vec!(set_stat_idle.clone()));
+
+    // act pos predicates
+    let pos_buffer = Predicate::EQVAL(act_pos.clone(), String::from("buffer"));
+    let pos_table = Predicate::EQVAL(act_pos.clone(), String::from("table"));
+    let pos_home = Predicate::EQVAL(act_pos.clone(), String::from("home"));
+    let not_pos_buffer = Predicate::NOT(vec!(pos_buffer.clone()));
+    let not_pos_table = Predicate::NOT(vec!(pos_table.clone()));
+    let not_pos_home = Predicate::NOT(vec!(pos_home.clone()));
+
+    // ref pos predicates
+    let set_pos_buffer = Predicate::EQVAL(ref_pos.clone(), String::from("buffer"));
+    let set_pos_table = Predicate::EQVAL(ref_pos.clone(), String::from("table"));
+    let set_pos_home = Predicate::EQVAL(ref_pos.clone(), String::from("home"));
+    let not_set_pos_buffer = Predicate::NOT(vec!(set_pos_buffer.clone()));
+    let not_set_pos_table = Predicate::NOT(vec!(set_pos_table.clone()));
+    let not_set_pos_home = Predicate::NOT(vec!(set_pos_home.clone()));
+
+    // act buffer predicates
+    let buffer_cube = Predicate::EQVAL(buffer.clone(), String::from("cube"));
+    let buffer_ball = Predicate::EQVAL(buffer.clone(), String::from("ball"));
+    let buffer_empty = Predicate::EQVAL(buffer.clone(), String::from("empty"));
+    let not_buffer_cube = Predicate::NOT(vec!(buffer_cube.clone()));
+    let not_buffer_ball = Predicate::NOT(vec!(buffer_ball.clone()));
+    let not_buffer_empty = Predicate::NOT(vec!(buffer_empty.clone()));
+    
+    // act gripper predicates
+    let gripper_cube = Predicate::EQVAL(gripper.clone(), String::from("cube"));
+    let gripper_ball = Predicate::EQVAL(gripper.clone(), String::from("ball"));
+    let gripper_empty = Predicate::EQVAL(gripper.clone(), String::from("empty"));
+    let not_gripper_cube = Predicate::NOT(vec!(gripper_cube.clone()));
+    let not_gripper_ball = Predicate::NOT(vec!(gripper_ball.clone()));
+    let not_gripper_empty = Predicate::NOT(vec!(gripper_empty.clone()));
+
+    // act table predicates
+    let table_cube = Predicate::EQVAL(table.clone(), String::from("cube"));
+    let table_ball = Predicate::EQVAL(table.clone(), String::from("ball"));
+    let table_empty = Predicate::EQVAL(table.clone(), String::from("empty"));
+    let not_table_cube = Predicate::NOT(vec!(table_cube.clone()));
+    let not_table_ball = Predicate::NOT(vec!(table_ball.clone()));
+    let not_table_empty = Predicate::NOT(vec!(table_empty.clone()));
+
+    // are ref == act predicates
+    let pos_stable = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_stable = Predicate::EQVAR(act_stat.clone(), ref_stat.clone());
+    let not_pos_stable = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
+    let not_stat_stable = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
+
+    // variables in the problem
+    let all_vars = vec!(
+        act_pos.clone(), 
+        ref_pos.clone(), 
+        act_stat.clone(), 
+        ref_stat.clone(),
+        buffer.clone(), 
+        gripper.clone(), 
+        table.clone()
+    );
+
+    let t1 = ParamTransition::new(
+        "start_activate",
+        vec!(ref_stat.clone()),
+        &vec!(
+            ("stat", not_stat_active.clone()),
+            ("stat", not_set_stat_active.clone())
+        ),
+        &vec!(
+            ("stat", set_stat_active.clone())
+        )
+    );
+
+    let t2 = ParamTransition::new(
+        "finish_activate",
+        vec!(act_stat.clone()),
+        &vec!(
+            ("stat", set_stat_active.clone()),
+            ("stat", not_stat_active.clone())
+        ),
+        &vec!(
+            ("stat", stat_active.clone())
+        )
+    );
+
+    let t3 = ParamTransition::new(
+        "start_deactivate",
+        vec!(ref_stat.clone()),
+        &vec!(
+            ("stat", not_stat_idle.clone()),
+            ("stat", not_set_stat_idle.clone())
+        ),
+        &vec!(
+            ("stat", set_stat_idle.clone())
+        )
+    );
+
+    let t4 = ParamTransition::new(
+        "finish_deactivate",
+        vec!(act_stat.clone()),
+        &vec!(
+            ("stat", not_stat_idle.clone()),
+            ("stat", set_stat_idle.clone())
+        ),
+        &vec!(
+            ("stat", stat_idle.clone())
+        )
+    );
+
+    let t5 = ParamTransition::new(
+        "start_move_to_buffer",
+        vec!(ref_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_stable.clone()),
+            ("pos", not_pos_buffer.clone()),
+            ("pos", not_set_pos_buffer.clone())
+        ),
+        &vec!(
+            ("pos", set_pos_buffer.clone())
+        )
+    );
+
+    let t6 = ParamTransition::new(
+        "finish_move_to_buffer",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_buffer.clone()),
+            ("pos", set_pos_buffer.clone())
+        ),
+        &vec!(
+            ("pos", pos_buffer.clone())
+        )
+    );
+
+    let t7 = ParamTransition::new(
+        "start_move_to_table",
+        vec!(ref_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_stable.clone()),
+            ("pos", not_pos_table.clone()),
+            ("pos", not_set_pos_table.clone())
+        ),
+        &vec!(
+            ("pos", set_pos_table.clone())
+        )
+    );
+
+    let t8 = ParamTransition::new(
+        "finish_move_to_table",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_table.clone()),
+            ("pos", set_pos_table.clone())
+        ),
+        &vec!(
+            ("pos", pos_table.clone())
+        )
+    );
+
+    let t9 = ParamTransition::new(
+        "start_move_to_home",
+        vec!(ref_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_stable.clone()),
+            ("pos", not_pos_home.clone()),
+            ("pos", not_set_pos_home.clone())
+        ),
+        &vec!(
+            ("pos", set_pos_home.clone())
+        )
+    );
+
+    let t10 = ParamTransition::new(
+        "finish_move_to_home",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_home.clone()),
+            ("pos", set_pos_home.clone())
+        ),
+        &vec!(
+            ("pos", pos_home.clone())
+        )
+    );
+
+    let t11 = ParamTransition::new(
+        "take_cube_from_buffer",
+        vec!(gripper.clone(), buffer.clone(), table.clone()),
+        &vec!(
+            ("cube", buffer_cube.clone()),
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_buffer.clone()),
+            ("pos", set_pos_buffer.clone())
+        ),
+        &vec!(
+            ("cube", gripper_cube.clone())
+        )
+    );
+
+    let t12 = ParamTransition::new(
+        "take_cube_from_table",
+        vec!(gripper.clone(), buffer.clone(), table.clone()),
+        &vec!(
+            ("cube", table_cube.clone()),
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_table.clone()),
+            ("pos", set_pos_table.clone())
+        ),
+        &vec!(
+            ("cube", gripper_cube.clone())
+        )
+    );
+
+    let t13 = ParamTransition::new(
+        "leave_cube_at_buffer",
+        vec!(gripper.clone(), buffer.clone(), table.clone()),
+        &vec!(
+            ("cube", gripper_cube.clone()),
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_buffer.clone()),
+            ("pos", set_pos_buffer.clone())
+        ),
+        &vec!(
+            ("cube", buffer_cube.clone())
+        )
+    );
+
+    let t14 = ParamTransition::new(
+        "leave_cube_at_table",
+        vec!(gripper.clone(), buffer.clone(), table.clone()),
+        &vec!(
+            ("cube", gripper_cube.clone()),
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_table.clone()),
+            ("pos", set_pos_table.clone())
+        ),
+        &vec!(
+            ("cube", table_cube.clone())
+        )
+    );
+
+    // 1. have to go through the "home" pose:
+    let s1 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AFTER(
+                        vec!(
+                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                        ),
+                        vec!(
+                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                        ),
+                        2 // how can this be improved so that the plan also holds for bigger a number
+                    )
+                )
+            )
+        )
+    );
+    
+    // 2. have to go through the "home" pose:
+    let s2 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AFTER(
+                        vec!(
+                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                        ),
+                        vec!(
+                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                        ),
+                        2 // how can this be improved so that the plan also holds for bigger a number
+                    )
+                )
+            )
+        )
+    );
+    
+    // 3. one cube in the system:
+    let s3 = Predicate::GLOB(
+        vec!(
+            Predicate::PBEQ(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            buffer_cube.clone(), 
+                            Predicate::NOT(
+                                vec!(
+                                    gripper_cube.clone()
+                                )
+                            ), 
+                            Predicate::NOT(
+                                vec!(
+                                    table_cube.clone()
+                                )
+                            )
+                        )
+                    ),
+                    Predicate::AND(
+                        vec!(
+                            table_cube.clone(), 
+                            Predicate::NOT(
+                                vec!(
+                                    gripper_cube.clone()
+                                )
+                            ), 
+                            Predicate::NOT(
+                                vec!(
+                                    buffer_cube.clone()
+                                )
+                            )
+                        )
+                    ),
+                    Predicate::AND(
+                        vec!(
+                            gripper_cube.clone(), 
+                            Predicate::NOT(
+                                vec!(
+                                    table_cube.clone()
+                                )
+                            ), 
+                            Predicate::NOT(
+                                vec!(
+                                    buffer_cube.clone()
+                                )
+                            )
+                        )
+                    )
+                ),
+                1
+            )
+        )
+    );
+    
+    // 4. no ball in the system:
+    let s4 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::OR(
+                        vec!(
+                            buffer_ball.clone(),
+                            table_ball.clone(),
+                            gripper_ball.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+    
+    let initial = vec!(
+        ("pos", pos_stable.clone()),
+        ("pos", pos_buffer.clone()),
+        ("stat", stat_stable.clone()),
+        ("stat", stat_idle.clone()),
+        ("cube", table_cube.clone())
+    );
+
+    let goal = vec!(
+        ("pos", pos_table.clone()),
+        ("stat", stat_idle.clone()),
+        ("cube", buffer_cube.clone())
+    );
+    
+    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), true), ("cube".to_string(), true));
+    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
+    let specs = Predicate::AND(vec!(s1, s2, s3, s4));
+
+    let mut concat: u32 = 0;
+    let mut level: u32 = 0;
+
+    let problem = ParamPlanningProblem::new(
+        String::from("param_prob_1"), 
+        all_vars.clone(),
+        act.clone().iter().map(|x| (x.0.as_str(), x.1)).collect(),
+        initial.clone(),
+        goal.clone(),
+        trans.clone(), 
+        specs.clone(),
+        30
+    );
+
+    let now = Instant::now();
+
+    let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
+
+    let seq_planning_time = now.elapsed();
+
+    println!("level: {:?}", result.level);
+    println!("concat: {:?}", result.concat);
+    println!("plan_found: {:?}", result.plan_found);
+    println!("plan_lenght: {:?}", result.plan_length);
+    println!("time_to_solve: {:?}", result.time_to_solve);
+    println!("trace: ");
+
+    for t in &result.trace{
+ 
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
+
+    // // 
+
+    // let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), false), ("stat".to_string(), true), ("cube".to_string(), false));
+    // let refining_order: Vec<&str> = vec!("pos", "cube", "stat"); // opposite for some reason? fix this
+    // let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
+
+    // println!("level: {:?}", result.level);
+    // println!("concat: {:?}", result.concat);
+    // println!("plan_found: {:?}", result.plan_found);
+    // println!("plan_lenght: {:?}", result.plan_length);
+    // println!("time_to_solve: {:?}", result.time_to_solve);
+    // println!("trace: ");
+
+    // for t in &result.trace{
+ 
+    //     println!("state: {:?}", t.state);
+    //     println!("trans: {:?}", t.trans);
+    //     println!("=========================");
+    // }
+
+    // let now = Instant::now();
+        
+    // let solution = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
+
+    // // RemoveLoops::new(&solution);
+    // let sorted_result = RemoveLoops::new(&solution);
+
+    // let comp_planning_time = now.elapsed();
+
+    // println!("comp_level: {:?}", solution.level);
+    // println!("comp_concat: {:?}", solution.concat);
+    // println!("comp_plan_found: {:?}", solution.plan_found);
+    // println!("comp_plan_lenght: {:?}", solution.plan_length);
+    // println!("comp_time_to_solve: {:?}", solution.time_to_solve);
+    // println!("comp_trace: ");
+
+    // for t in &solution.trace{
+ 
+    //     println!("state: {:?}", t.state);
+    //     println!("trans: {:?}", t.trans);
+    //     println!("=========================");
+    // }
+
+    
+
+    // println!("sorted_level: {:?}", sorted_result.level);
+    // println!("sorted_concat: {:?}", sorted_result.concat);
+    // println!("sorted_plan_found: {:?}", sorted_result.plan_found);
+    // println!("sorted_plan_lenght: {:?}", sorted_result.plan_length);
+    // println!("sorted_time_to_solve: {:?}", sorted_result.time_to_solve);
+    // println!("sorted_trace: ");
+
+    // for t in &sorted_result.trace{
+    
+    //     println!("state: {:?}", t.state);
+    //     println!("trans: {:?}", t.trans);
+    //     println!("=========================");
+    // }
+
+    println!("TOTAL SEQUENTIAL TIME: {:?}", seq_planning_time);
+    // println!("TOTAL COMPOSITIONAL TIME: {:?}", comp_planning_time);
+}
+
+#[test]
+fn example_1_compositional(){
+    
+    let pose_domain = vec!("buffer", "home", "table");
+    let stat_domain = vec!("active", "idle");
+    let buffer_domain = vec!("cube", "ball", "empty");
+    let gripper_domain = vec!("cube", "ball", "empty");
+    let table_domain = vec!("cube", "ball", "empty");
+
+    // var group pos
+    let act_pos = Variable::new("act_pos", "pose", pose_domain.clone());
+    let ref_pos = Variable::new("ref_pos", "pose", pose_domain.clone());
+
+    // var group stat
+    let act_stat = Variable::new("act_stat", "status", stat_domain.clone());
+    let ref_stat = Variable::new("ref_stat", "status", stat_domain.clone());
+
+    // var group cube, have to think of something better
+    let buffer = Variable::new("buffer_cube", "buffer", buffer_domain.clone());
+    let gripper = Variable::new("gripper_cube", "gripper", gripper_domain.clone());
+    let table = Variable::new("table_cube", "table", table_domain.clone());
+
+    // act stat predicates
+    let stat_active = Predicate::EQVAL(act_stat.clone(), String::from("active"));
+    let stat_idle = Predicate::EQVAL(act_stat.clone(), String::from("idle"));
+    let not_stat_active = Predicate::NOT(vec!(stat_active.clone()));
+    let not_stat_idle = Predicate::NOT(vec!(stat_idle.clone()));
+
+    // ref stat predicates
+    let set_stat_active = Predicate::EQVAL(ref_stat.clone(), String::from("active"));
+    let set_stat_idle = Predicate::EQVAL(ref_stat.clone(), String::from("idle"));
+    let not_set_stat_active = Predicate::NOT(vec!(set_stat_active.clone()));
+    let not_set_stat_idle = Predicate::NOT(vec!(set_stat_idle.clone()));
+
+    // act pos predicates
+    let pos_buffer = Predicate::EQVAL(act_pos.clone(), String::from("buffer"));
+    let pos_table = Predicate::EQVAL(act_pos.clone(), String::from("table"));
+    let pos_home = Predicate::EQVAL(act_pos.clone(), String::from("home"));
+    let not_pos_buffer = Predicate::NOT(vec!(pos_buffer.clone()));
+    let not_pos_table = Predicate::NOT(vec!(pos_table.clone()));
+    let not_pos_home = Predicate::NOT(vec!(pos_home.clone()));
+
+    // ref pos predicates
+    let set_pos_buffer = Predicate::EQVAL(ref_pos.clone(), String::from("buffer"));
+    let set_pos_table = Predicate::EQVAL(ref_pos.clone(), String::from("table"));
+    let set_pos_home = Predicate::EQVAL(ref_pos.clone(), String::from("home"));
+    let not_set_pos_buffer = Predicate::NOT(vec!(set_pos_buffer.clone()));
+    let not_set_pos_table = Predicate::NOT(vec!(set_pos_table.clone()));
+    let not_set_pos_home = Predicate::NOT(vec!(set_pos_home.clone()));
+
+    // act buffer predicates
+    let buffer_cube = Predicate::EQVAL(buffer.clone(), String::from("cube"));
+    let buffer_ball = Predicate::EQVAL(buffer.clone(), String::from("ball"));
+    let buffer_empty = Predicate::EQVAL(buffer.clone(), String::from("empty"));
+    let not_buffer_cube = Predicate::NOT(vec!(buffer_cube.clone()));
+    let not_buffer_ball = Predicate::NOT(vec!(buffer_ball.clone()));
+    let not_buffer_empty = Predicate::NOT(vec!(buffer_empty.clone()));
+    
+    // act gripper predicates
+    let gripper_cube = Predicate::EQVAL(gripper.clone(), String::from("cube"));
+    let gripper_ball = Predicate::EQVAL(gripper.clone(), String::from("ball"));
+    let gripper_empty = Predicate::EQVAL(gripper.clone(), String::from("empty"));
+    let not_gripper_cube = Predicate::NOT(vec!(gripper_cube.clone()));
+    let not_gripper_ball = Predicate::NOT(vec!(gripper_ball.clone()));
+    let not_gripper_empty = Predicate::NOT(vec!(gripper_empty.clone()));
+
+    // act table predicates
+    let table_cube = Predicate::EQVAL(table.clone(), String::from("cube"));
+    let table_ball = Predicate::EQVAL(table.clone(), String::from("ball"));
+    let table_empty = Predicate::EQVAL(table.clone(), String::from("empty"));
+    let not_table_cube = Predicate::NOT(vec!(table_cube.clone()));
+    let not_table_ball = Predicate::NOT(vec!(table_ball.clone()));
+    let not_table_empty = Predicate::NOT(vec!(table_empty.clone()));
+
+    // are ref == act predicates
+    let pos_stable = Predicate::EQVAR(act_pos.clone(), ref_pos.clone());
+    let stat_stable = Predicate::EQVAR(act_stat.clone(), ref_stat.clone());
+    let not_pos_stable = Predicate::NEQVAR(act_pos.clone(), ref_pos.clone());
+    let not_stat_stable = Predicate::NEQVAR(act_stat.clone(), ref_stat.clone());
+
+    // variables in the problem
+    let all_vars = vec!(
+        act_pos.clone(), 
+        ref_pos.clone(), 
+        act_stat.clone(), 
+        ref_stat.clone(),
+        buffer.clone(), 
+        gripper.clone(), 
+        table.clone()
+    );
+
+    let t1 = ParamTransition::new(
+        "start_activate",
+        vec!(ref_stat.clone()),
+        &vec!(
+            ("stat", not_stat_active.clone()),
+            ("stat", not_set_stat_active.clone())
+        ),
+        &vec!(
+            ("stat", set_stat_active.clone())
+        )
+    );
+
+    let t2 = ParamTransition::new(
+        "finish_activate",
+        vec!(act_stat.clone()),
+        &vec!(
+            ("stat", set_stat_active.clone()),
+            ("stat", not_stat_active.clone())
+        ),
+        &vec!(
+            ("stat", stat_active.clone())
+        )
+    );
+
+    let t3 = ParamTransition::new(
+        "start_deactivate",
+        vec!(ref_stat.clone()),
+        &vec!(
+            ("stat", not_stat_idle.clone()),
+            ("stat", not_set_stat_idle.clone())
+        ),
+        &vec!(
+            ("stat", set_stat_idle.clone())
+        )
+    );
+
+    let t4 = ParamTransition::new(
+        "finish_deactivate",
+        vec!(act_stat.clone()),
+        &vec!(
+            ("stat", not_stat_idle.clone()),
+            ("stat", set_stat_idle.clone())
+        ),
+        &vec!(
+            ("stat", stat_idle.clone())
+        )
+    );
+
+    let t5 = ParamTransition::new(
+        "start_move_to_buffer",
+        vec!(ref_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_stable.clone()),
+            ("pos", not_pos_buffer.clone()),
+            ("pos", not_set_pos_buffer.clone())
+        ),
+        &vec!(
+            ("pos", set_pos_buffer.clone())
+        )
+    );
+
+    let t6 = ParamTransition::new(
+        "finish_move_to_buffer",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_buffer.clone()),
+            ("pos", set_pos_buffer.clone())
+        ),
+        &vec!(
+            ("pos", pos_buffer.clone())
+        )
+    );
+
+    let t7 = ParamTransition::new(
+        "start_move_to_table",
+        vec!(ref_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_stable.clone()),
+            ("pos", not_pos_table.clone()),
+            ("pos", not_set_pos_table.clone())
+        ),
+        &vec!(
+            ("pos", set_pos_table.clone())
+        )
+    );
+
+    let t8 = ParamTransition::new(
+        "finish_move_to_table",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_table.clone()),
+            ("pos", set_pos_table.clone())
+        ),
+        &vec!(
+            ("pos", pos_table.clone())
+        )
+    );
+
+    let t9 = ParamTransition::new(
+        "start_move_to_home",
+        vec!(ref_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_stable.clone()),
+            ("pos", not_pos_home.clone()),
+            ("pos", not_set_pos_home.clone())
+        ),
+        &vec!(
+            ("pos", set_pos_home.clone())
+        )
+    );
+
+    let t10 = ParamTransition::new(
+        "finish_move_to_home",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_home.clone()),
+            ("pos", set_pos_home.clone())
+        ),
+        &vec!(
+            ("pos", pos_home.clone())
+        )
+    );
+
+    let t11 = ParamTransition::new(
+        "take_cube_from_buffer",
+        vec!(gripper.clone(), buffer.clone(), table.clone()),
+        &vec!(
+            ("cube", buffer_cube.clone()),
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_buffer.clone()),
+            ("pos", set_pos_buffer.clone())
+        ),
+        &vec!(
+            ("cube", gripper_cube.clone())
+        )
+    );
+
+    let t12 = ParamTransition::new(
+        "take_cube_from_table",
+        vec!(gripper.clone(), buffer.clone(), table.clone()),
+        &vec!(
+            ("cube", table_cube.clone()),
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_table.clone()),
+            ("pos", set_pos_table.clone())
+        ),
+        &vec!(
+            ("cube", gripper_cube.clone())
+        )
+    );
+
+    let t13 = ParamTransition::new(
+        "leave_cube_at_buffer",
+        vec!(gripper.clone(), buffer.clone(), table.clone()),
+        &vec!(
+            ("cube", gripper_cube.clone()),
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_buffer.clone()),
+            ("pos", set_pos_buffer.clone())
+        ),
+        &vec!(
+            ("cube", buffer_cube.clone())
+        )
+    );
+
+    let t14 = ParamTransition::new(
+        "leave_cube_at_table",
+        vec!(gripper.clone(), buffer.clone(), table.clone()),
+        &vec!(
+            ("cube", gripper_cube.clone()),
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_table.clone()),
+            ("pos", set_pos_table.clone())
+        ),
+        &vec!(
+            ("cube", table_cube.clone())
+        )
+    );
+
+    // 1. have to go through the "home" pose:
+    let s1 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AFTER(
+                        vec!(
+                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                        ),
+                        vec!(
+                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                        ),
+                        2 // how can this be improved so that the plan also holds for bigger a number
+                    )
+                )
+            )
+        )
+    );
+    
+    // 2. have to go through the "home" pose:
+    let s2 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AFTER(
+                        vec!(
+                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                        ),
+                        vec!(
+                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                        ),
+                        2 // how can this be improved so that the plan also holds for bigger a number
+                    )
+                )
+            )
+        )
+    );
+    
+    // 3. one cube in the system:
+    let s3 = Predicate::GLOB(
+        vec!(
+            Predicate::PBEQ(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            buffer_cube.clone(), 
+                            Predicate::NOT(
+                                vec!(
+                                    gripper_cube.clone()
+                                )
+                            ), 
+                            Predicate::NOT(
+                                vec!(
+                                    table_cube.clone()
+                                )
+                            )
+                        )
+                    ),
+                    Predicate::AND(
+                        vec!(
+                            table_cube.clone(), 
+                            Predicate::NOT(
+                                vec!(
+                                    gripper_cube.clone()
+                                )
+                            ), 
+                            Predicate::NOT(
+                                vec!(
+                                    buffer_cube.clone()
+                                )
+                            )
+                        )
+                    ),
+                    Predicate::AND(
+                        vec!(
+                            gripper_cube.clone(), 
+                            Predicate::NOT(
+                                vec!(
+                                    table_cube.clone()
+                                )
+                            ), 
+                            Predicate::NOT(
+                                vec!(
+                                    buffer_cube.clone()
+                                )
+                            )
+                        )
+                    )
+                ),
+                1
+            )
+        )
+    );
+    
+    // 4. no ball in the system:
+    let s4 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::OR(
+                        vec!(
+                            buffer_ball.clone(),
+                            table_ball.clone(),
+                            gripper_ball.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+    
+    let initial = vec!(
+        ("pos", pos_stable.clone()),
+        ("pos", pos_buffer.clone()),
+        ("stat", stat_stable.clone()),
+        ("stat", stat_idle.clone()),
+        ("cube", table_cube.clone())
+    );
+
+    let goal = vec!(
+        ("pos", pos_table.clone()),
+        ("stat", stat_idle.clone()),
+        ("cube", buffer_cube.clone())
+    );
+    
+    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), true), ("cube".to_string(), true));
+    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
+    let specs = Predicate::AND(vec!(s1, s2, s3, s4));
+
+    let mut concat: u32 = 0;
+    let mut level: u32 = 0;
+
+    let problem = ParamPlanningProblem::new(
+        String::from("param_prob_1"), 
+        all_vars.clone(),
+        act.clone().iter().map(|x| (x.0.as_str(), x.1)).collect(),
+        initial.clone(),
+        goal.clone(),
+        trans.clone(), 
+        specs.clone(),
+        30
+    );
+
+
+    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), false), ("cube".to_string(), false));
+    let refining_order: Vec<&str> = vec!("cube", "stat", "pos"); // opposite for some reason? fix this
+    let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
+ 
+    let solution = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
+
+    // println!("comp_level: {:?}", solution.level);
+    // println!("comp_concat: {:?}", solution.concat);
+    // println!("comp_plan_found: {:?}", solution.plan_found);
+    // println!("comp_plan_lenght: {:?}", solution.plan_length);
+    // println!("comp_time_to_solve: {:?}", solution.time_to_solve);
+    // println!("comp_trace: ");
+
+    // for t in &solution.trace{
+ 
+    //     println!("state: {:?}", t.state);
+    //     println!("trans: {:?}", t.trans);
+    //     println!("=========================");
+    // }
+
+}
+
+#[test]
+fn example_2_sequential(){
+    
+    let r1_pose_domain = vec!("11", "12", "13", "14", "15");
+    let r2_pose_domain = vec!("21", "22", "23", "24", "25");
+
+    // r1 var group
+    let r1_act_pos = Variable::new("r1_act_pos", "r1_pose", r1_pose_domain.clone());
+    let r1_ref_pos = Variable::new("r1_ref_pos", "r1_pose", r1_pose_domain.clone());
+
+    // r2 var group
+    let r2_act_pos = Variable::new("r2_act_pos", "r2_pose", r2_pose_domain.clone());
+    let r2_ref_pos = Variable::new("r2_ref_pos", "r2_pose", r2_pose_domain.clone());
+
+    // r1 act pos predicates
+    let r1_pos_1 = Predicate::EQVAL(r1_act_pos.clone(), String::from("11"));
+    let r1_pos_2 = Predicate::EQVAL(r1_act_pos.clone(), String::from("12"));
+    let r1_pos_3 = Predicate::EQVAL(r1_act_pos.clone(), String::from("13"));
+    let r1_pos_4 = Predicate::EQVAL(r1_act_pos.clone(), String::from("14"));
+    let r1_pos_5 = Predicate::EQVAL(r1_act_pos.clone(), String::from("15"));
+    let not_r1_pos_1 = Predicate::NOT(vec!(r1_pos_1.clone()));
+    let not_r1_pos_2 = Predicate::NOT(vec!(r1_pos_2.clone()));
+    let not_r1_pos_3 = Predicate::NOT(vec!(r1_pos_3.clone()));
+    let not_r1_pos_4 = Predicate::NOT(vec!(r1_pos_4.clone()));
+    let not_r1_pos_5 = Predicate::NOT(vec!(r1_pos_5.clone()));
+
+    // r2 act pos predicates
+    let r2_pos_1 = Predicate::EQVAL(r2_act_pos.clone(), String::from("21"));
+    let r2_pos_2 = Predicate::EQVAL(r2_act_pos.clone(), String::from("22"));
+    let r2_pos_3 = Predicate::EQVAL(r2_act_pos.clone(), String::from("23"));
+    let r2_pos_4 = Predicate::EQVAL(r2_act_pos.clone(), String::from("24"));
+    let r2_pos_5 = Predicate::EQVAL(r2_act_pos.clone(), String::from("25"));
+    let not_r2_pos_1 = Predicate::NOT(vec!(r2_pos_1.clone()));
+    let not_r2_pos_2 = Predicate::NOT(vec!(r2_pos_2.clone()));
+    let not_r2_pos_3 = Predicate::NOT(vec!(r2_pos_3.clone()));
+    let not_r2_pos_4 = Predicate::NOT(vec!(r2_pos_4.clone()));
+    let not_r2_pos_5 = Predicate::NOT(vec!(r2_pos_5.clone()));
+
+    // r1 ref pos predicates
+    let r1_set_pos_1 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("11"));
+    let r1_set_pos_2 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("12"));
+    let r1_set_pos_3 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("13"));
+    let r1_set_pos_4 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("14"));
+    let r1_set_pos_5 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("15"));
+    let not_r1_set_pos_1 = Predicate::NOT(vec!(r1_set_pos_1.clone()));
+    let not_r1_set_pos_2 = Predicate::NOT(vec!(r1_set_pos_2.clone()));
+    let not_r1_set_pos_3 = Predicate::NOT(vec!(r1_set_pos_3.clone()));
+    let not_r1_set_pos_4 = Predicate::NOT(vec!(r1_set_pos_4.clone()));
+    let not_r1_set_pos_5 = Predicate::NOT(vec!(r1_set_pos_5.clone()));
+
+    // r2 act pos predicates
+    let r2_set_pos_1 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("21"));
+    let r2_set_pos_2 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("22"));
+    let r2_set_pos_3 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("23"));
+    let r2_set_pos_4 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("24"));
+    let r2_set_pos_5 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("25"));
+    let not_r2_set_pos_1 = Predicate::NOT(vec!(r2_set_pos_1.clone()));
+    let not_r2_set_pos_2 = Predicate::NOT(vec!(r2_set_pos_2.clone()));
+    let not_r2_set_pos_3 = Predicate::NOT(vec!(r2_set_pos_3.clone()));
+    let not_r2_set_pos_4 = Predicate::NOT(vec!(r2_set_pos_4.clone()));
+    let not_r2_set_pos_5 = Predicate::NOT(vec!(r2_set_pos_5.clone()));
+
+    // are ref == act predicates
+    let r1_pos_stable = Predicate::EQVAR(r1_act_pos.clone(), r1_ref_pos.clone());
+    let r2_pos_stable = Predicate::EQVAR(r2_act_pos.clone(), r2_ref_pos.clone());
+    let not_r1_pos_stable = Predicate::NEQVAR(r1_act_pos.clone(), r1_ref_pos.clone());
+    let not_r2_pos_stable = Predicate::NEQVAR(r2_act_pos.clone(), r2_ref_pos.clone());
+
+    // variables in the problem
+    let all_vars = vec!(
+        r1_act_pos.clone(), 
+        r1_ref_pos.clone(), 
+        r2_act_pos.clone(), 
+        r2_ref_pos.clone()
+    );
+
+    let t1 = ParamTransition::new(
+        "r1_start_move_to_11",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", r1_pos_2.clone()),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_1.clone()),
+            ("r1_pos", not_r1_set_pos_1.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_1.clone())
+        )
+    );
+
+    let t2 = ParamTransition::new(
+        "r1_finish_move_to_11",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_1.clone()),
+            ("r1_pos", r1_set_pos_1.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_1.clone())
+        )
+    );
+
+    let t3 = ParamTransition::new(
+        "r1_start_move_to_12",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", Predicate::OR(vec!(r1_pos_1.clone(), r1_pos_3.clone()))),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_2.clone()),
+            ("r1_pos", not_r1_set_pos_2.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_2.clone())
+        )
+    );
+
+    let t4 = ParamTransition::new(
+        "r1_finish_move_to_12",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_2.clone()),
+            ("r1_pos", r1_set_pos_2.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_2.clone())
+        )
+    );
+
+    let t5 = ParamTransition::new(
+        "r1_start_move_to_13",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", Predicate::OR(vec!(r1_pos_2.clone(), r1_pos_4.clone()))),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_3.clone()),
+            ("r1_pos", not_r1_set_pos_3.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_3.clone())
+        )
+    );
+
+    let t6 = ParamTransition::new(
+        "r1_finish_move_to_13",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_3.clone()),
+            ("r1_pos", r1_set_pos_3.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_3.clone())
+        )
+    );
+
+    let t7 = ParamTransition::new(
+        "r1_start_move_to_14",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", Predicate::OR(vec!(r1_pos_3.clone(), r1_pos_5.clone()))),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_4.clone()),
+            ("r1_pos", not_r1_set_pos_4.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_4.clone())
+        )
+    );
+
+    let t8 = ParamTransition::new(
+        "r1_finish_move_to_14",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_4.clone()),
+            ("r1_pos", r1_set_pos_4.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_4.clone())
+        )
+    );
+
+    let t9 = ParamTransition::new(
+        "r1_start_move_to_15",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", r1_pos_4.clone()),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_5.clone()),
+            ("r1_pos", not_r1_set_pos_5.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_5.clone())
+        )
+    );
+
+    let t10 = ParamTransition::new(
+        "r1_finish_move_to_15",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_5.clone()),
+            ("r1_pos", r1_set_pos_5.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_5.clone())
+        )
+    );
+
+    let t11 = ParamTransition::new(
+        "r2_start_move_to_21",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", r2_pos_2.clone()),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_1.clone()),
+            ("r2_pos", not_r2_set_pos_1.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_1.clone())
+        )
+    );
+
+    let t12 = ParamTransition::new(
+        "r2_finish_move_to_21",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_1.clone()),
+            ("r2_pos", r2_set_pos_1.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_1.clone())
+        )
+    );
+
+    let t13 = ParamTransition::new(
+        "r2_start_move_to_22",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", Predicate::OR(vec!(r2_pos_1.clone(), r2_pos_3.clone()))),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_2.clone()),
+            ("r2_pos", not_r2_set_pos_2.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_2.clone())
+        )
+    );
+
+    let t14 = ParamTransition::new(
+        "r2_finish_move_to_22",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_2.clone()),
+            ("r2_pos", r2_set_pos_2.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_2.clone())
+        )
+    );
+
+    let t15 = ParamTransition::new(
+        "r2_start_move_to_23",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", Predicate::OR(vec!(r2_pos_2.clone(), r2_pos_4.clone()))),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_3.clone()),
+            ("r2_pos", not_r2_set_pos_3.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_3.clone())
+        )
+    );
+
+    let t16 = ParamTransition::new(
+        "r2_finish_move_to_23",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_3.clone()),
+            ("r2_pos", r2_set_pos_3.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_3.clone())
+        )
+    );
+
+    let t17 = ParamTransition::new(
+        "r2_start_move_to_24",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", Predicate::OR(vec!(r2_pos_3.clone(), r2_pos_5.clone()))),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_4.clone()),
+            ("r2_pos", not_r2_set_pos_4.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_4.clone())
+        )
+    );
+
+    let t18 = ParamTransition::new(
+        "r2_finish_move_to_24",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_4.clone()),
+            ("r2_pos", r2_set_pos_4.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_4.clone())
+        )
+    );
+
+    let t19 = ParamTransition::new(
+        "r2_start_move_to_25",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", r2_pos_4.clone()),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_5.clone()),
+            ("r2_pos", not_r2_set_pos_5.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_5.clone())
+        )
+    );
+
+    let t20 = ParamTransition::new(
+        "r2_finish_move_to_25",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_5.clone()),
+            ("r2_pos", r2_set_pos_5.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_5.clone())
+        )
+    );
+
+    // only one robot moves at a time (a good csrt to test the compositional algorithm):
+    let s1 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            not_r1_pos_stable.clone(),
+                            not_r2_pos_stable.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    // they can't be at the cross section or move towards or away from the cross section at the same time:
+    let s2 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            r1_pos_3.clone(),
+                            r2_pos_3.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    let initial = vec!(
+        ("r1_pos", r1_pos_stable.clone()),
+        ("r1_pos", r1_pos_1.clone()),
+        ("r1_pos", r1_set_pos_1.clone()),
+        ("r2_pos", r2_pos_stable.clone()),
+        ("r2_pos", r2_pos_1.clone()),
+        ("r2_pos", r2_set_pos_1.clone())
+    );
+
+    let goal = vec!(
+        ("r1_pos", r1_pos_stable.clone()),
+        ("r1_pos", r1_pos_5.clone()),
+        ("r1_pos", r1_set_pos_5.clone()),
+        ("r2_pos", r2_pos_stable.clone()),
+        ("r2_pos", r2_pos_5.clone()),
+        ("r2_pos", r2_set_pos_5.clone())
+    );
+    
+    let mut act: Vec<(String, bool)> = vec!(("r1_pos".to_string(), true), ("r2_pos".to_string(), true));
+    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20);
+    let specs = Predicate::AND(vec!(s2));
+
+    let mut concat: u32 = 0;
+    let mut level: u32 = 0;
+
+    let problem = ParamPlanningProblem::new(
+        String::from("agvs_1"), 
+        all_vars.clone(),
+        act.clone().iter().map(|x| (x.0.as_str(), x.1)).collect(),
+        initial.clone(),
+        goal.clone(),
+        trans.clone(), 
+        specs.clone(),
+        30
+    );
+
+    let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
+
+    println!("level: {:?}", result.level);
+    println!("concat: {:?}", result.concat);
+    println!("plan_found: {:?}", result.plan_found);
+    println!("plan_lenght: {:?}", result.plan_length);
+    println!("time_to_solve: {:?}", result.time_to_solve);
+    println!("trace: ");
+
+    for t in &result.trace{
+ 
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
+
+
+}
+
+#[test]
+fn example_2_compositional(){
+    
+    let r1_pose_domain = vec!("11", "12", "13", "14", "15");
+    let r2_pose_domain = vec!("21", "22", "23", "24", "25");
+
+    // r1 var group
+    let r1_act_pos = Variable::new("r1_act_pos", "r1_pose", r1_pose_domain.clone());
+    let r1_ref_pos = Variable::new("r1_ref_pos", "r1_pose", r1_pose_domain.clone());
+
+    // r2 var group
+    let r2_act_pos = Variable::new("r2_act_pos", "r2_pose", r2_pose_domain.clone());
+    let r2_ref_pos = Variable::new("r2_ref_pos", "r2_pose", r2_pose_domain.clone());
+
+    // r1 act pos predicates
+    let r1_pos_1 = Predicate::EQVAL(r1_act_pos.clone(), String::from("11"));
+    let r1_pos_2 = Predicate::EQVAL(r1_act_pos.clone(), String::from("12"));
+    let r1_pos_3 = Predicate::EQVAL(r1_act_pos.clone(), String::from("13"));
+    let r1_pos_4 = Predicate::EQVAL(r1_act_pos.clone(), String::from("14"));
+    let r1_pos_5 = Predicate::EQVAL(r1_act_pos.clone(), String::from("15"));
+    let not_r1_pos_1 = Predicate::NOT(vec!(r1_pos_1.clone()));
+    let not_r1_pos_2 = Predicate::NOT(vec!(r1_pos_2.clone()));
+    let not_r1_pos_3 = Predicate::NOT(vec!(r1_pos_3.clone()));
+    let not_r1_pos_4 = Predicate::NOT(vec!(r1_pos_4.clone()));
+    let not_r1_pos_5 = Predicate::NOT(vec!(r1_pos_5.clone()));
+
+    // r2 act pos predicates
+    let r2_pos_1 = Predicate::EQVAL(r2_act_pos.clone(), String::from("21"));
+    let r2_pos_2 = Predicate::EQVAL(r2_act_pos.clone(), String::from("22"));
+    let r2_pos_3 = Predicate::EQVAL(r2_act_pos.clone(), String::from("23"));
+    let r2_pos_4 = Predicate::EQVAL(r2_act_pos.clone(), String::from("24"));
+    let r2_pos_5 = Predicate::EQVAL(r2_act_pos.clone(), String::from("25"));
+    let not_r2_pos_1 = Predicate::NOT(vec!(r2_pos_1.clone()));
+    let not_r2_pos_2 = Predicate::NOT(vec!(r2_pos_2.clone()));
+    let not_r2_pos_3 = Predicate::NOT(vec!(r2_pos_3.clone()));
+    let not_r2_pos_4 = Predicate::NOT(vec!(r2_pos_4.clone()));
+    let not_r2_pos_5 = Predicate::NOT(vec!(r2_pos_5.clone()));
+
+    // r1 ref pos predicates
+    let r1_set_pos_1 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("11"));
+    let r1_set_pos_2 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("12"));
+    let r1_set_pos_3 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("13"));
+    let r1_set_pos_4 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("14"));
+    let r1_set_pos_5 = Predicate::EQVAL(r1_ref_pos.clone(), String::from("15"));
+    let not_r1_set_pos_1 = Predicate::NOT(vec!(r1_set_pos_1.clone()));
+    let not_r1_set_pos_2 = Predicate::NOT(vec!(r1_set_pos_2.clone()));
+    let not_r1_set_pos_3 = Predicate::NOT(vec!(r1_set_pos_3.clone()));
+    let not_r1_set_pos_4 = Predicate::NOT(vec!(r1_set_pos_4.clone()));
+    let not_r1_set_pos_5 = Predicate::NOT(vec!(r1_set_pos_5.clone()));
+
+    // r2 act pos predicates
+    let r2_set_pos_1 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("21"));
+    let r2_set_pos_2 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("22"));
+    let r2_set_pos_3 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("23"));
+    let r2_set_pos_4 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("24"));
+    let r2_set_pos_5 = Predicate::EQVAL(r2_ref_pos.clone(), String::from("25"));
+    let not_r2_set_pos_1 = Predicate::NOT(vec!(r2_set_pos_1.clone()));
+    let not_r2_set_pos_2 = Predicate::NOT(vec!(r2_set_pos_2.clone()));
+    let not_r2_set_pos_3 = Predicate::NOT(vec!(r2_set_pos_3.clone()));
+    let not_r2_set_pos_4 = Predicate::NOT(vec!(r2_set_pos_4.clone()));
+    let not_r2_set_pos_5 = Predicate::NOT(vec!(r2_set_pos_5.clone()));
+
+    // are ref == act predicates
+    let r1_pos_stable = Predicate::EQVAR(r1_act_pos.clone(), r1_ref_pos.clone());
+    let r2_pos_stable = Predicate::EQVAR(r2_act_pos.clone(), r2_ref_pos.clone());
+    let not_r1_pos_stable = Predicate::NEQVAR(r1_act_pos.clone(), r1_ref_pos.clone());
+    let not_r2_pos_stable = Predicate::NEQVAR(r2_act_pos.clone(), r2_ref_pos.clone());
+
+    // variables in the problem
+    let all_vars = vec!(
+        r1_act_pos.clone(), 
+        r1_ref_pos.clone(), 
+        r2_act_pos.clone(), 
+        r2_ref_pos.clone()
+    );
+
+    let t1 = ParamTransition::new(
+        "r1_start_move_to_11",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", r1_pos_2.clone()),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_1.clone()),
+            ("r1_pos", not_r1_set_pos_1.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_1.clone())
+        )
+    );
+
+    let t2 = ParamTransition::new(
+        "r1_finish_move_to_11",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_1.clone()),
+            ("r1_pos", r1_set_pos_1.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_1.clone())
+        )
+    );
+
+    let t3 = ParamTransition::new(
+        "r1_start_move_to_12",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", Predicate::OR(vec!(r1_pos_1.clone(), r1_pos_3.clone()))),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_2.clone()),
+            ("r1_pos", not_r1_set_pos_2.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_2.clone())
+        )
+    );
+
+    let t4 = ParamTransition::new(
+        "r1_finish_move_to_12",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_2.clone()),
+            ("r1_pos", r1_set_pos_2.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_2.clone())
+        )
+    );
+
+    let t5 = ParamTransition::new(
+        "r1_start_move_to_13",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", Predicate::OR(vec!(r1_pos_2.clone(), r1_pos_4.clone()))),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_3.clone()),
+            ("r1_pos", not_r1_set_pos_3.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_3.clone())
+        )
+    );
+
+    let t6 = ParamTransition::new(
+        "r1_finish_move_to_13",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_3.clone()),
+            ("r1_pos", r1_set_pos_3.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_3.clone())
+        )
+    );
+
+    let t7 = ParamTransition::new(
+        "r1_start_move_to_14",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", Predicate::OR(vec!(r1_pos_3.clone(), r1_pos_5.clone()))),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_4.clone()),
+            ("r1_pos", not_r1_set_pos_4.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_4.clone())
+        )
+    );
+
+    let t8 = ParamTransition::new(
+        "r1_finish_move_to_14",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_4.clone()),
+            ("r1_pos", r1_set_pos_4.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_4.clone())
+        )
+    );
+
+    let t9 = ParamTransition::new(
+        "r1_start_move_to_15",
+        vec!(r1_ref_pos.clone()),
+        &vec!(
+            ("r1_pos", r1_pos_4.clone()),
+            ("r1_pos", r1_pos_stable.clone()),
+            ("r1_pos", not_r1_pos_5.clone()),
+            ("r1_pos", not_r1_set_pos_5.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_set_pos_5.clone())
+        )
+    );
+
+    let t10 = ParamTransition::new(
+        "r1_finish_move_to_15",
+        vec!(r1_act_pos.clone()),
+        &vec!(
+            ("r1_pos", not_r1_pos_5.clone()),
+            ("r1_pos", r1_set_pos_5.clone())
+        ),
+        &vec!(
+            ("r1_pos", r1_pos_5.clone())
+        )
+    );
+
+    let t11 = ParamTransition::new(
+        "r2_start_move_to_21",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", r2_pos_2.clone()),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_1.clone()),
+            ("r2_pos", not_r2_set_pos_1.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_1.clone())
+        )
+    );
+
+    let t12 = ParamTransition::new(
+        "r2_finish_move_to_21",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_1.clone()),
+            ("r2_pos", r2_set_pos_1.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_1.clone())
+        )
+    );
+
+    let t13 = ParamTransition::new(
+        "r2_start_move_to_22",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", Predicate::OR(vec!(r2_pos_1.clone(), r2_pos_3.clone()))),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_2.clone()),
+            ("r2_pos", not_r2_set_pos_2.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_2.clone())
+        )
+    );
+
+    let t14 = ParamTransition::new(
+        "r2_finish_move_to_22",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_2.clone()),
+            ("r2_pos", r2_set_pos_2.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_2.clone())
+        )
+    );
+
+    let t15 = ParamTransition::new(
+        "r2_start_move_to_23",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", Predicate::OR(vec!(r2_pos_2.clone(), r2_pos_4.clone()))),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_3.clone()),
+            ("r2_pos", not_r2_set_pos_3.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_3.clone())
+        )
+    );
+
+    let t16 = ParamTransition::new(
+        "r2_finish_move_to_23",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_3.clone()),
+            ("r2_pos", r2_set_pos_3.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_3.clone())
+        )
+    );
+
+    let t17 = ParamTransition::new(
+        "r2_start_move_to_24",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", Predicate::OR(vec!(r2_pos_3.clone(), r2_pos_5.clone()))),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_4.clone()),
+            ("r2_pos", not_r2_set_pos_4.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_4.clone())
+        )
+    );
+
+    let t18 = ParamTransition::new(
+        "r2_finish_move_to_24",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_4.clone()),
+            ("r2_pos", r2_set_pos_4.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_4.clone())
+        )
+    );
+
+    let t19 = ParamTransition::new(
+        "r2_start_move_to_25",
+        vec!(r2_ref_pos.clone()),
+        &vec!(
+            ("r2_pos", r2_pos_4.clone()),
+            ("r2_pos", r2_pos_stable.clone()),
+            ("r2_pos", not_r2_pos_5.clone()),
+            ("r2_pos", not_r2_set_pos_5.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_set_pos_5.clone())
+        )
+    );
+
+    let t20 = ParamTransition::new(
+        "r2_finish_move_to_25",
+        vec!(r2_act_pos.clone()),
+        &vec!(
+            ("r2_pos", not_r2_pos_5.clone()),
+            ("r2_pos", r2_set_pos_5.clone())
+        ),
+        &vec!(
+            ("r2_pos", r2_pos_5.clone())
+        )
+    );
+
+    // only one robot moves at a time (a good csrt to test the compositional algorithm):
+    let s1 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            not_r1_pos_stable.clone(),
+                            not_r2_pos_stable.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    // they can't be at the cross section or move towards or away from the cross section at the same time:
+    let s2 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            r1_pos_3.clone(),
+                            r2_pos_3.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    let initial = vec!(
+        ("r1_pos", r1_pos_stable.clone()),
+        ("r1_pos", r1_pos_1.clone()),
+        ("r1_pos", r1_set_pos_1.clone()),
+        ("r2_pos", r2_pos_stable.clone()),
+        ("r2_pos", r2_pos_1.clone()),
+        ("r2_pos", r2_set_pos_1.clone())
+    );
+
+    let goal = vec!(
+        ("r1_pos", r1_pos_stable.clone()),
+        ("r1_pos", r1_pos_5.clone()),
+        ("r1_pos", r1_set_pos_5.clone()),
+        ("r2_pos", r2_pos_stable.clone()),
+        ("r2_pos", r2_pos_5.clone()),
+        ("r2_pos", r2_set_pos_5.clone())
+    );
+
+    let mut act: Vec<(String, bool)> = vec!(("r1_pos".to_string(), true), ("r2_pos".to_string(), true));
+    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20);
+    let specs = Predicate::AND(vec!(s1, s2));
+
+    let mut concat: u32 = 0;
+    let mut level: u32 = 0;
+
+    let problem = ParamPlanningProblem::new(
+        String::from("param_prob_1"), 
+        all_vars.clone(),
+        act.clone().iter().map(|x| (x.0.as_str(), x.1)).collect(),
+        initial.clone(),
+        goal.clone(),
+        trans.clone(), 
+        specs.clone(),
+        30
+    );
+
+
+    let mut act: Vec<(String, bool)> = vec!(("r1_pos".to_string(), true), ("r2_pos".to_string(), false));
+    let refining_order: Vec<&str> = vec!("r2_pos", "r1_pos"); // opposite for some reason? fix this
+    let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
+ 
+    let solution = Compositional2::new(&result, &problem, &act, &refining_order, &vec!(result.clone()), level);
+
+    println!("comp_level: {:?}", solution.level);
+    println!("comp_concat: {:?}", solution.concat);
+    println!("comp_plan_found: {:?}", solution.plan_found);
+    println!("comp_plan_lenght: {:?}", solution.plan_length);
+    println!("comp_time_to_solve: {:?}", solution.time_to_solve);
+    println!("comp_trace: ");
+
+    for t in &solution.trace{
+ 
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
+}
