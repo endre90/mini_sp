@@ -199,47 +199,47 @@ pub struct AbstractHard<'ctx> {
 
 pub struct Refine {}
 
-pub trait IterOps<T, I>: IntoIterator<Item = T>
-    where I: IntoIterator<Item = T>,
-          T: PartialEq {
-    fn intersect(self, other: I) -> Vec<T>;
-    fn difference(self, other: I) -> Vec<T>;
-}
+// pub trait IterOps<T, I>: IntoIterator<Item = T>
+//     where I: IntoIterator<Item = T>,
+//           T: PartialEq {
+//     fn intersect(self, other: I) -> Vec<T>;
+//     fn difference(self, other: I) -> Vec<T>;
+// }
 
-impl<T, I> IterOps<T, I> for I
-    where I: IntoIterator<Item = T>,
-          T: PartialEq
-{
-    fn intersect(self, other: I) -> Vec<T> {
-        let mut common = Vec::new();
-        let mut v_other: Vec<_> = other.into_iter().collect();
+// impl<T, I> IterOps<T, I> for I
+//     where I: IntoIterator<Item = T>,
+//           T: PartialEq
+// {
+//     fn intersect(self, other: I) -> Vec<T> {
+//         let mut common = Vec::new();
+//         let mut v_other: Vec<_> = other.into_iter().collect();
 
-        for e1 in self.into_iter() {
-            if let Some(pos) = v_other.iter().position(|e2| e1 == *e2) {
-                common.push(e1);
-                v_other.remove(pos);
-            }
-        }
+//         for e1 in self.into_iter() {
+//             if let Some(pos) = v_other.iter().position(|e2| e1 == *e2) {
+//                 common.push(e1);
+//                 v_other.remove(pos);
+//             }
+//         }
 
-        common
-    }
+//         common
+//     }
 
-    fn difference(self, other: I) -> Vec<T> {
-        let mut diff = Vec::new();
-        let mut v_other: Vec<_> = other.into_iter().collect();
+//     fn difference(self, other: I) -> Vec<T> {
+//         let mut diff = Vec::new();
+//         let mut v_other: Vec<_> = other.into_iter().collect();
 
-        for e1 in self.into_iter() {
-            if let Some(pos) = v_other.iter().position(|e2| e1 == *e2) {
-                v_other.remove(pos);
-            } else {
-                diff.push(e1);
-            }
-        }
+//         for e1 in self.into_iter() {
+//             if let Some(pos) = v_other.iter().position(|e2| e1 == *e2) {
+//                 v_other.remove(pos);
+//             } else {
+//                 diff.push(e1);
+//             }
+//         }
 
-        diff.append(&mut v_other);
-        diff
-    }
-}
+//         diff.append(&mut v_other);
+//         diff
+//     }
+// }
 
 impl Variable {
     /// Creates a new Variable
@@ -5931,7 +5931,7 @@ fn example_3_sequential(){
 }
 
 
-//two home poses, has to go through both
+//three home poses, has to go through all. gripper also not active in home2
 #[test]
 fn example_4_sequential(){
 
@@ -5939,7 +5939,7 @@ fn example_4_sequential(){
     // so for instance, if you're activating a robot and a gripper, you have to finish activating
     // one first and then actvate another. This maybe makes sense in general
     
-    let pose_domain = vec!("buffer", "home", "home2", "table");
+    let pose_domain = vec!("buffer", "home", "home2", "home3", "table");
     let gripper_pose_domain = vec!("cube", "ball", "closed", "open");
     let stat_domain = vec!("active", "idle");
     let gripper_stat_domain = vec!("active", "idle");
@@ -5998,20 +5998,24 @@ fn example_4_sequential(){
     let pos_table = Predicate::EQVAL(act_pos.clone(), String::from("table"));
     let pos_home = Predicate::EQVAL(act_pos.clone(), String::from("home"));
     let pos_home2 = Predicate::EQVAL(act_pos.clone(), String::from("home2"));
+    let pos_home3 = Predicate::EQVAL(act_pos.clone(), String::from("home3"));
     let not_pos_buffer = Predicate::NOT(vec!(pos_buffer.clone()));
     let not_pos_table = Predicate::NOT(vec!(pos_table.clone()));
     let not_pos_home = Predicate::NOT(vec!(pos_home.clone()));
     let not_pos_home2 = Predicate::NOT(vec!(pos_home2.clone()));
+    let not_pos_home3 = Predicate::NOT(vec!(pos_home3.clone()));
 
     // ref pos predicates
     let set_pos_buffer = Predicate::EQVAL(ref_pos.clone(), String::from("buffer"));
     let set_pos_table = Predicate::EQVAL(ref_pos.clone(), String::from("table"));
     let set_pos_home = Predicate::EQVAL(ref_pos.clone(), String::from("home"));
     let set_pos_home2 = Predicate::EQVAL(ref_pos.clone(), String::from("home2"));
+    let set_pos_home3 = Predicate::EQVAL(ref_pos.clone(), String::from("home3"));
     let not_set_pos_buffer = Predicate::NOT(vec!(set_pos_buffer.clone()));
     let not_set_pos_table = Predicate::NOT(vec!(set_pos_table.clone()));
     let not_set_pos_home = Predicate::NOT(vec!(set_pos_home.clone()));
     let not_set_pos_home2 = Predicate::NOT(vec!(set_pos_home2.clone()));
+    let not_set_pos_home3 = Predicate::NOT(vec!(set_pos_home3.clone()));
 
     // act buffer predicates
     let buffer_cube = Predicate::EQVAL(buffer.clone(), String::from("cube"));
@@ -6488,7 +6492,35 @@ fn example_4_sequential(){
         )
     );
 
-    // 1. have to go through the "home" pose:
+    let t29 = ParamTransition::new(
+        "start_move_to_home3",
+        vec!(ref_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_stable.clone()),
+            ("pos", not_pos_home3.clone()),
+            ("pos", not_set_pos_home3.clone())
+        ),
+        &vec!(
+            ("pos", set_pos_home3.clone())
+        )
+    );
+
+    let t30 = ParamTransition::new(
+        "finish_move_to_home3",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_home3.clone()),
+            ("pos", set_pos_home3.clone())
+        ),
+        &vec!(
+            ("pos", pos_home3.clone())
+        )
+    );
+
     let s1 = Predicate::GLOB(
         vec!(
             Predicate::NOT(
@@ -6498,7 +6530,13 @@ fn example_4_sequential(){
                             Predicate::EQVAL(act_pos.clone(), String::from("table"))
                         ),
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home2")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home3")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -6513,10 +6551,15 @@ fn example_4_sequential(){
                 vec!(
                     Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                            Predicate::EQVAL(act_pos.clone(), String::from("home"))
                         ),
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("home2"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home3")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -6531,10 +6574,15 @@ fn example_4_sequential(){
                 vec!(
                     Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                            Predicate::EQVAL(act_pos.clone(), String::from("home2"))
                         ),
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("table")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -6549,10 +6597,15 @@ fn example_4_sequential(){
                 vec!(
                     Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                            Predicate::EQVAL(act_pos.clone(), String::from("home3"))
                         ),
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("home"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("table")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -6567,36 +6620,133 @@ fn example_4_sequential(){
                 vec!(
                     Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("home"))
-                        ),
-                        vec!(
                             Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
                         ),
+                        vec!(
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("table")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home2"))
+                                )   
+                            )
+                        ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
                 )
             )
         )
     );
+
+    // // 1. have to go through the "home" pose:
+    // let s1 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
+    // let s2 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("home2"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
+    // let s3 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
+    // let s4 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("home"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
+    // let s5 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("home"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
     
-    // 2. have to go through the "home" pose:
-    let s6 = Predicate::GLOB(
-        vec!(
-            Predicate::NOT(
-                vec!(
-                    Predicate::AFTER(
-                        vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("home2"))
-                        ),
-                        vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
-                        ),
-                        2 // how can this be improved so that the plan also holds for bigger a number
-                    )
-                )
-            )
-        )
-    );
+    // // 2. have to go through the "home" pose:
+    // let s6 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("home2"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
     
     // 3. one cube in the system:
     let s7 = Predicate::GLOB(
@@ -6771,6 +6921,22 @@ fn example_4_sequential(){
                         vec!(
                             not_grip_stat_stable.clone(),
                             not_pos_stable.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    // gripper not active in "home2"
+    let s13 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            pos_home2.clone(),
+                            grip_stat_active.clone()
                         )
                     )
                 )
@@ -6806,8 +6972,8 @@ fn example_4_sequential(){
     let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), true), ("cube".to_string(), true),
     ("grip_pos".to_string(), true), ("grip_stat".to_string(), true));
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14,
-        t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28);
-    let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12));
+        t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30);
+    let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s7, s8, s9, s10, s11, s12));
 
     let mut concat: u32 = 0;
     let mut level: u32 = 0;
@@ -6820,7 +6986,7 @@ fn example_4_sequential(){
         goal.clone(),
         trans.clone(), 
         specs.clone(),
-        40
+        50
     );
 
     let now = Instant::now();
@@ -6844,7 +7010,7 @@ fn example_4_sequential(){
     }
 }
 
-//two home poses, has to go through both
+// three home poses, has to go through all. in home2 the gripper has to be deactivated
 #[test]
 fn example_4_compositional(){
 
@@ -6852,7 +7018,7 @@ fn example_4_compositional(){
     // so for instance, if you're activating a robot and a gripper, you have to finish activating
     // one first and then actvate another. This maybe makes sense in general
     
-    let pose_domain = vec!("buffer", "home", "home2", "table");
+    let pose_domain = vec!("buffer", "home", "home2", "home3", "table");
     let gripper_pose_domain = vec!("cube", "ball", "closed", "open");
     let stat_domain = vec!("active", "idle");
     let gripper_stat_domain = vec!("active", "idle");
@@ -6911,20 +7077,24 @@ fn example_4_compositional(){
     let pos_table = Predicate::EQVAL(act_pos.clone(), String::from("table"));
     let pos_home = Predicate::EQVAL(act_pos.clone(), String::from("home"));
     let pos_home2 = Predicate::EQVAL(act_pos.clone(), String::from("home2"));
+    let pos_home3 = Predicate::EQVAL(act_pos.clone(), String::from("home3"));
     let not_pos_buffer = Predicate::NOT(vec!(pos_buffer.clone()));
     let not_pos_table = Predicate::NOT(vec!(pos_table.clone()));
     let not_pos_home = Predicate::NOT(vec!(pos_home.clone()));
     let not_pos_home2 = Predicate::NOT(vec!(pos_home2.clone()));
+    let not_pos_home3 = Predicate::NOT(vec!(pos_home3.clone()));
 
     // ref pos predicates
     let set_pos_buffer = Predicate::EQVAL(ref_pos.clone(), String::from("buffer"));
     let set_pos_table = Predicate::EQVAL(ref_pos.clone(), String::from("table"));
     let set_pos_home = Predicate::EQVAL(ref_pos.clone(), String::from("home"));
     let set_pos_home2 = Predicate::EQVAL(ref_pos.clone(), String::from("home2"));
+    let set_pos_home3 = Predicate::EQVAL(ref_pos.clone(), String::from("home3"));
     let not_set_pos_buffer = Predicate::NOT(vec!(set_pos_buffer.clone()));
     let not_set_pos_table = Predicate::NOT(vec!(set_pos_table.clone()));
     let not_set_pos_home = Predicate::NOT(vec!(set_pos_home.clone()));
     let not_set_pos_home2 = Predicate::NOT(vec!(set_pos_home2.clone()));
+    let not_set_pos_home3 = Predicate::NOT(vec!(set_pos_home3.clone()));
 
     // act buffer predicates
     let buffer_cube = Predicate::EQVAL(buffer.clone(), String::from("cube"));
@@ -7401,7 +7571,145 @@ fn example_4_compositional(){
         )
     );
 
-    // 1. have to go through the "home" pose:
+    let t29 = ParamTransition::new(
+        "start_move_to_home3",
+        vec!(ref_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", pos_stable.clone()),
+            ("pos", not_pos_home3.clone()),
+            ("pos", not_set_pos_home3.clone())
+        ),
+        &vec!(
+            ("pos", set_pos_home3.clone())
+        )
+    );
+
+    let t30 = ParamTransition::new(
+        "finish_move_to_home3",
+        vec!(act_pos.clone()),
+        &vec!(
+            ("stat", stat_active.clone()),
+            ("stat", set_stat_active.clone()),
+            ("pos", not_pos_home3.clone()),
+            ("pos", set_pos_home3.clone())
+        ),
+        &vec!(
+            ("pos", pos_home3.clone())
+        )
+    );
+
+    // // 1. have to go through the "home" pose:
+    // let s1 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
+    // let s2 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("home2"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
+    // let s3 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
+    // let s4 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("home"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
+    // let s5 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("home"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+    
+    // // 2. have to go through the "home" pose:
+    // let s6 = Predicate::GLOB(
+    //     vec!(
+    //         Predicate::NOT(
+    //             vec!(
+    //                 Predicate::AFTER(
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("home2"))
+    //                     ),
+    //                     vec!(
+    //                         Predicate::EQVAL(act_pos.clone(), String::from("table"))
+    //                     ),
+    //                     2 // how can this be improved so that the plan also holds for bigger a number
+    //                 )
+    //             )
+    //         )
+    //     )
+    // );
+
     let s1 = Predicate::GLOB(
         vec!(
             Predicate::NOT(
@@ -7411,7 +7719,13 @@ fn example_4_compositional(){
                             Predicate::EQVAL(act_pos.clone(), String::from("table"))
                         ),
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home2")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home3")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -7426,10 +7740,15 @@ fn example_4_compositional(){
                 vec!(
                     Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                            Predicate::EQVAL(act_pos.clone(), String::from("home"))
                         ),
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("home2"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home3")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -7444,10 +7763,15 @@ fn example_4_compositional(){
                 vec!(
                     Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                            Predicate::EQVAL(act_pos.clone(), String::from("home2"))
                         ),
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("table")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -7462,10 +7786,15 @@ fn example_4_compositional(){
                 vec!(
                     Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
+                            Predicate::EQVAL(act_pos.clone(), String::from("home3"))
                         ),
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("home"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("table")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -7480,29 +7809,16 @@ fn example_4_compositional(){
                 vec!(
                     Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("home"))
-                        ),
-                        vec!(
                             Predicate::EQVAL(act_pos.clone(), String::from("buffer"))
                         ),
-                        2 // how can this be improved so that the plan also holds for bigger a number
-                    )
-                )
-            )
-        )
-    );
-    
-    // 2. have to go through the "home" pose:
-    let s6 = Predicate::GLOB(
-        vec!(
-            Predicate::NOT(
-                vec!(
-                    Predicate::AFTER(
                         vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("home2"))
-                        ),
-                        vec!(
-                            Predicate::EQVAL(act_pos.clone(), String::from("table"))
+                            Predicate::OR(
+                                vec!(
+                                    Predicate::EQVAL(act_pos.clone(), String::from("table")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home")),
+                                    Predicate::EQVAL(act_pos.clone(), String::from("home2"))
+                                )   
+                            )
                         ),
                         2 // how can this be improved so that the plan also holds for bigger a number
                     )
@@ -7690,6 +8006,22 @@ fn example_4_compositional(){
             )
         )
     );
+
+    // gripper not active in "home2"
+    let s13 = Predicate::GLOB(
+        vec!(
+            Predicate::NOT(
+                vec!(
+                    Predicate::AND(
+                        vec!(
+                            pos_home2.clone(),
+                            grip_stat_active.clone()
+                        )
+                    )
+                )
+            )
+        )
+    );
     
     let initial = vec!(
         ("pos", pos_stable.clone()),
@@ -7715,7 +8047,7 @@ fn example_4_compositional(){
     // let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), true), ("stat".to_string(), true), ("cube".to_string(), true),
     // ("grip_pos".to_string(), true), ("grip_stat".to_string(), true));
     // let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14,
-    //     t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28);
+    //     t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30);
     // let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10));
 
     // let mut concat: u32 = 0;
@@ -7754,11 +8086,11 @@ fn example_4_compositional(){
 
     // ===========================
 
-    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), false), ("stat".to_string(), false), ("cube".to_string(), true),
-    ("grip_pos".to_string(), false), ("grip_stat".to_string(), false));
+    let mut act: Vec<(String, bool)> = vec!(("pos".to_string(), false), ("stat".to_string(), false), ("cube".to_string(), false),
+    ("grip_pos".to_string(), true), ("grip_stat".to_string(), false));
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14,
-        t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28);
-    let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12));
+        t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30);
+    let specs = Predicate::AND(vec!(s1, s2, s3, s4, s5, s7, s8, s9, s10, s11, s12));
 
     let mut concat: u32 = 0;
     let mut level: u32 = 0;
@@ -7776,7 +8108,7 @@ fn example_4_compositional(){
 
 
     // let mut act: Vec<(String, bool)> = vec!(("r1_pos".to_string(), true), ("r2_pos".to_string(), false));
-    let refining_order: Vec<&str> = vec!("pos", "grip_pos", "stat", "grip_stat", "cube"); // opposite for some reason? fix this
+    let refining_order: Vec<&str> = vec!("pos", "stat", "cube", "grip_stat", "grip_pos"); // opposite for some reason? fix this
     let result = ParamSequential::new(&problem, &act.iter().map(|x| (x.0.as_str(), x.1)).collect(), 0, 0);
 
     println!("comp_level: {:?}", result.level);

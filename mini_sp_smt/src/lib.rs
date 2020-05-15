@@ -37,7 +37,7 @@ pub use crate::z3logics::{ANDZ3, ORZ3, DISTINCTZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, X
 pub mod z3utils;
 pub use crate::z3utils::{AstToStringZ3, ModelToStringZ3, ModelGetNumConstsZ3, ModelGetConstDeclZ3, 
     GetDeclNameZ3, ModelGetConstInterpZ3, GetSymbolStringZ3, GetCnfVectorZ3, Z3StringToStringZ3,
-    AstVectorToStringZ3, Z3AstVectorToVectorAstZ3, FreshModelZ3};
+    AstVectorToStringZ3, Z3AstVectorToVectorAstZ3, FreshModelZ3, IterOps};
 
 pub mod z3planning;
 pub use crate::z3planning::{Variable, Predicate, Transition, PlanningProblem, PlanningResult, PlanningFrame, PredicateToAstZ3};
@@ -46,3 +46,10 @@ pub use crate::z3planning::{Variable, Predicate, Transition, PlanningProblem, Pl
 
 pub mod z3ltlf;
 pub use crate::z3ltlf::{GloballyZ3, NextZ3, AfterZ3}; //UntilZ3, Until2Z3, AtLeastOnceZ3};
+
+
+pub mod z3ltlf2;
+pub use crate::z3ltlf::{};
+
+pub mod z3planning2;
+pub use crate::z3planning2::{};
