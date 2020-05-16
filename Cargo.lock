@@ -237,6 +237,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "mini_sp_tools"
+version = "0.1.0"
+dependencies = [
+ "crossbeam",
+ "env_logger",
+ "itertools",
+ "lazy_static",
+ "log",
+ "mini_sp_smt",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "z3-sys",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
