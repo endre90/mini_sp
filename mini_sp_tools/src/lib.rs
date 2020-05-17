@@ -4,7 +4,10 @@ pub mod basics;
 pub use crate::basics::{EnumVariable};
 
 pub mod ltlf;
-pub use crate::ltlf::{NextZ3, GloballyZ3, AtLeastOnceZ3, TracePBEQZ3};
+pub use crate::ltlf::{NextZ3, AlwaysZ3, EventuallyZ3, UntilZ3, ReleaseZ3}; //WeakNextZ3, 
+
+// pub mod nsltlf;
+// pub use crate::ltlf::{AfterZ3, SomewhenAfterZ3, PeriodAfterZ3, TracePBEQZ3};
 
 pub mod incremental;
 pub use crate::incremental::{};
