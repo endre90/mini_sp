@@ -6,8 +6,8 @@ pub use crate::basics::{EnumVariable};
 pub mod ltlf;
 pub use crate::ltlf::{NextZ3, AlwaysZ3, EventuallyZ3, UntilZ3, ReleaseZ3}; //WeakNextZ3, 
 
-// pub mod nsltlf;
-// pub use crate::ltlf::{AfterZ3, SomewhenAfterZ3, PeriodAfterZ3, TracePBEQZ3};
+pub mod nsltlf;
+pub use crate::nsltlf::{AfterZ3,  TracePBEQZ3}; // SomewhenAfterZ3, PeriodAfterZ3 maybe these are until?
 
 pub mod incremental;
 pub use crate::incremental::{};
