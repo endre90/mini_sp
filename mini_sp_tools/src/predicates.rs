@@ -21,12 +21,12 @@ pub enum Predicate {
     NEQPP(Box<Predicate>, Box<Predicate>), 
     PBEQ(Vec<Predicate>, i32), // exactly n true predicates in a step
     NEXT(Box<Predicate>), // in the next step
-    GLOB(Box<Predicate>), // in every step of the trace
-    ALONCE(Box<Predicate>), // at least once in the trace
-    // AFTER(Box<Predicate>, Box<Predicate>), // next, but extended to the end of the trace
-    // ITFNS(Box<Predicate>, u32), // in the following n steps
-    // TPBEQ(Vec<Predicate>, i32), // exactly n times true in a trace
-    // UNTIL(Box<Predicate>, Box<Predicate>) // first one true until the second
+    ALWAYS(Box<Predicate>), // in every step of the trace
+    EVENTUALLY(Box<Predicate>), // at least once in the trace
+    UNTIL(Box<Predicate>, Box<Predicate>), // first one true until the second
+    RELEASE(Box<Predicate>, Box<Predicate>), // first one releases the second of the duty to be true when it becomes true
+    AFTER(Box<Predicate>, Box<Predicate>), // a predicate should hold in the step after the other
+    TPBEQ(Box<Predicate>, u32) // exactly n times true in a trace
 }
 
 pub struct PredicateToAstZ3<'ctx> {
@@ -52,7 +52,7 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                         let index = x.domain.iter().position(|r| *r == y.to_string()).unwrap();
                         EQZ3::new(&ctx, EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", x.name.to_string(), step).as_str()), elems[index])      
                     },
-                    false => panic!("Error: Value '{}' not in the domain of variable '{}'.", y, x.name)
+                    false => panic!("Error 6f789b86-7f6c-4426-ab0f-6b5b72dd2c55: Value '{}' not in the domain of variable '{}'.", y, x.name)
                 }
             },
             Predicate::EQRR(x, y) => {
@@ -73,10 +73,10 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                                 let v_2 = EnumVarZ3::new(&ctx, sort_2.r, format!("{}_s{}", y.name.to_string(), step - 1).as_str());
                                 EQZ3::new(&ctx, v_1, v_2)
                             },
-                            _ => panic!("Error: Predicate type '{}' is not allowed.", r#type)
+                            _ => panic!("Error 53b0fd14-1ddd-4bf0-8dc7-d372d6ad8c99: Predicate type '{}' is not allowed.", r#type)
                         }
                     },
-                    false => panic!("Error: Sorts '{}' and '{}' are incompatible.", x.r#type, y.r#type)
+                    false => panic!("Error c8022e33-ed30-43af-8e45-8cfdaf09e8a5: Sorts '{}' and '{}' are incompatible.", x.r#type, y.r#type)
                 }
             },
             Predicate::EQLR(y, x) => {
@@ -87,7 +87,7 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                         let index = x.domain.iter().position(|r| *r == y.to_string()).unwrap();
                         EQZ3::new(&ctx, EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", x.name.to_string(), step).as_str()), elems[index])      
                     },
-                    false => panic!("Error: Value '{}' not in the domain of variable '{}'.", y, x.name)
+                    false => panic!("Error c8250dfd-6d3c-4371-8fee-813ba5100d80: Value '{}' not in the domain of variable '{}'.", y, x.name)
                 }
             },
             Predicate::EQPP(x, y) => EQZ3::new(&ctx, PredicateToAstZ3::new(&ctx, x, r#type, step), PredicateToAstZ3::new(&ctx, y, r#type, step)),
@@ -99,7 +99,7 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                         let index = x.domain.iter().position(|r| *r == y.to_string()).unwrap();
                         NEQZ3::new(&ctx, EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", x.name.to_string(), step).as_str()), elems[index])      
                     },
-                    false => panic!("Error: Value '{}' not in the domain of variable '{}'.", y, x.name)
+                    false => panic!("Error 82ffe471-c922-43b0-bfa0-98c27626408e: Value '{}' not in the domain of variable '{}'.", y, x.name)
                 }
             },
             Predicate::NEQRR(x, y) => {
@@ -120,10 +120,10 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                                 let v_2 = EnumVarZ3::new(&ctx, sort_2.r, format!("{}_s{}", y.name.to_string(), step - 1).as_str());
                                 NEQZ3::new(&ctx, v_1, v_2)
                             },
-                            _ => panic!("Error: Predicate type '{}' is not allowed.", r#type)
+                            _ => panic!("Error 9ed281a9-173c-44ab-9226-cdbcdd13cc83: Predicate type '{}' is not allowed.", r#type)
                         }
                     },
-                    false => panic!("Error: Sorts '{}' and '{}' are incompatible.", x.r#type, y.r#type)
+                    false => panic!("Error 708e3200-2c6c-4a2b-a283-1e0b5b87b2cc: Sorts '{}' and '{}' are incompatible.", x.r#type, y.r#type)
                 }
             },
             Predicate::NEQLR(y, x) => {
@@ -134,14 +134,18 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                         let index = x.domain.iter().position(|r| *r == y.to_string()).unwrap();
                         NEQZ3::new(&ctx, EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", x.name.to_string(), step).as_str()), elems[index])      
                     },
-                    false => panic!("Error: Value '{}' not in the domain of variable '{}'.", y, x.name)
+                    false => panic!("Error 44d999a5-4dac-4957-ac02-7806ce8f0ea8: Value '{}' not in the domain of variable '{}'.", y, x.name)
                 }
             },
             Predicate::NEQPP(x, y) => NEQZ3::new(&ctx, PredicateToAstZ3::new(&ctx, x, r#type, step), PredicateToAstZ3::new(&ctx, y, r#type, step)),
             Predicate::PBEQ(x, k) => PBEQZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, r#type, step)).collect(), *k),
             Predicate::NEXT(x) => NextZ3::new(&ctx, &x, r#type, step),
-            Predicate::GLOB(x) => AlwaysZ3::new(&ctx, &x, r#type, step),
-            Predicate::ALONCE(x) => EventuallyZ3::new(&ctx, &x, r#type, step)
+            Predicate::ALWAYS(x) => AlwaysZ3::new(&ctx, &x, r#type, step),
+            Predicate::EVENTUALLY(x) => EventuallyZ3::new(&ctx, &x, r#type, step),
+            Predicate::UNTIL(x, y) => UntilZ3::new(&ctx, &x, &y, r#type, step),
+            Predicate::RELEASE(x, y) => ReleaseZ3::new(&ctx, &x, &y, r#type, step),
+            Predicate::AFTER(x, y) => AfterZ3::new(&ctx, &x, &y, r#type, step),
+            Predicate::TPBEQ(x, y) => TracePBEQZ3::new(&ctx, &x, r#type, &y, step)
         }
     }
 }
@@ -221,7 +225,7 @@ fn test_eqrl_predicate(){
 }
 
 #[test]
-#[should_panic(expected = "Error: Value 'e' not in the domain of variable 'x'.")]
+#[should_panic(expected = "Error 6f789b86-7f6c-4426-ab0f-6b5b72dd2c55: Value 'e' not in the domain of variable 'x'.")]
 fn test_eqrl_predicate_panic(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
@@ -248,7 +252,7 @@ fn test_eqrr_predicate(){
 }
 
 #[test]
-#[should_panic(expected = "Error: Predicate type 'other' is not allowed.")]
+#[should_panic(expected = "Error 53b0fd14-1ddd-4bf0-8dc7-d372d6ad8c99: Predicate type 'other' is not allowed.")]
 fn test_eqrr_predicate_panic_1(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
@@ -261,7 +265,7 @@ fn test_eqrr_predicate_panic_1(){
 }
 
 #[test]
-#[should_panic(expected = "Error: Sorts 'letters' and 'numbers' are incompatible.")]
+#[should_panic(expected = "Error c8022e33-ed30-43af-8e45-8cfdaf09e8a5: Sorts 'letters' and 'numbers' are incompatible.")]
 fn test_eqrr_predicate_panic_2(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
@@ -287,7 +291,7 @@ fn test_eqlr_predicate(){
 }
 
 #[test]
-#[should_panic(expected = "Error: Value 'e' not in the domain of variable 'x'.")]
+#[should_panic(expected = "Error c8250dfd-6d3c-4371-8fee-813ba5100d80: Value 'e' not in the domain of variable 'x'.")]
 fn test_eqlr_predicate_panic(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
@@ -316,7 +320,7 @@ fn test_pbeq_predicate(){
     let nb = Predicate::EQLR(b, x);
     let nc = Predicate::EQLR(c, y);
     let nd = Predicate::EQLR(d, z);
-    let pbeq = Predicate::PBEQ(vec!(nb, nc, nd), 3);
+    let pbeq = Predicate::PBEQ(vec!(nb, nc, nd), 2);
     let pred = PredicateToAstZ3::new(&ctx, &pbeq, "guard", &4);
     // assert_eq!("(= x_s3 b)", ast_to_string_z3!(&ctx, pred));
 
@@ -324,11 +328,11 @@ fn test_pbeq_predicate(){
     slv_check_z3!(&ctx, &slv);
 
     let model = slv_get_model_z3!(&ctx, &slv);
-    assert_eq!("x_s2 -> a\nx_s0 -> b\nx_s3 -> a\nx_s1 -> b\nx_s4 -> a\n", model_to_string_z3!(&ctx, model));
+    assert_eq!("z_s4 -> b\nx_s4 -> b\ny_s4 -> c\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
-fn test_glob_pbeq_predicate(){
+fn test_always_pbeq_predicate(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
     let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
@@ -345,8 +349,8 @@ fn test_glob_pbeq_predicate(){
     let nc = Predicate::EQLR(c, y);
     let nd = Predicate::EQLR(d, z);
     let pbeq = Predicate::PBEQ(vec!(nb, nc, nd), 2);
-    let pred = Predicate::GLOB(Box::new(pbeq));
-    let glob_pred = PredicateToAstZ3::new(&ctx, &pred, "guard", &4);
+    let pred = Predicate::ALWAYS(Box::new(pbeq));
+    let glob_pred = PredicateToAstZ3::new(&ctx, &pred, "guard", &2);
     
     // assert_eq!("(= x_s3 b)", ast_to_string_z3!(&ctx, pred));
 
@@ -354,27 +358,43 @@ fn test_glob_pbeq_predicate(){
     slv_check_z3!(&ctx, &slv);
 
     let model = slv_get_model_z3!(&ctx, &slv);
-    assert_eq!("z_s4 -> b\ny_s4 -> c\nx_s4 -> b\ny_s2 -> c\nz_s3 -> b\nx_s1 -> b\nx_s2 -> b\nx_s0 -> b\ny_s1 -> c\ny_s3 -> c\nz_s2 -> b\nx_s3 -> b\nz_s1 -> b\ny_s0 -> c\nz_s0 -> b\n", model_to_string_z3!(&ctx, model));
+    assert_eq!("x_s2 -> b\nx_s0 -> b\ny_s1 -> b\nz_s2 -> d\ny_s2 -> b\nz_s1 -> d\ny_s0 -> b\nz_s0 -> d\nx_s1 -> b\n", model_to_string_z3!(&ctx, model));
 }
 
-// #[test]
-// fn test_next_predicate(){
+#[test]
+fn test_next_predicate(){
 
-//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-//     let b = "b".to_string();
-//     let c = "c".to_string();
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let b = "b".to_string();
 
-//     let cfg = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&cfg);
-//     let prev = Predicate::EQRL(x.clone(), b);
-//     let next = Predicate::EQRL(x.clone(), c);
-//     let pred = Predicate::NEXT(Box::new(prev), Box::new(next));
-//     let ast = PredicateToAstZ3::new(&ctx, &pred, "guard", &3);
-//     assert_eq!("(and (= x_s3 b) (= x_s4 c))", ast_to_string_z3!(&ctx, ast));
-// }
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+
+    let prev = Predicate::EQRL(x.clone(), b);
+
+    let pred = Predicate::NEXT(Box::new(prev));
+    let ast = PredicateToAstZ3::new(&ctx, &pred, "guard", &3);
+    assert_eq!("(= x_s4 b)", ast_to_string_z3!(&ctx, ast));
+}
 
 #[test]
-fn test_glob_predicate(){
+fn test_after_predicate(){
+
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let b = "b".to_string();
+    let c = "c".to_string();
+
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let prev = Predicate::EQRL(x.clone(), b);
+    let next = Predicate::EQRL(x.clone(), c);
+    let pred = Predicate::AFTER(Box::new(prev), Box::new(next));
+    let ast = PredicateToAstZ3::new(&ctx, &pred, "guard", &3);
+    assert_eq!("(and (= x_s3 b) (= x_s4 c))", ast_to_string_z3!(&ctx, ast));
+}
+
+#[test]
+fn test_always_predicate(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
     let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
@@ -384,33 +404,32 @@ fn test_glob_predicate(){
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
     let prev = Predicate::EQRL(x.clone(), b.clone());
-    let pred = Predicate::GLOB(Box::new(prev));
+    let pred = Predicate::ALWAYS(Box::new(prev));
     let ast = PredicateToAstZ3::new(&ctx, &pred, "guard", &3);
     assert_eq!("(and (= x_s0 b) (= x_s1 b) (= x_s2 b) (= x_s3 b))", ast_to_string_z3!(&ctx, ast));
 }
 
-// #[test]
-// fn test_glob_next_predicate(){
+#[test]
+fn test_always_after_predicate(){
 
-//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-//     let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
-//     let b = "b".to_string();
-//     let c = "c".to_string();
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let b = "b".to_string();
+    let c = "c".to_string();
 
-//     let cfg = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&cfg);
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
 
-//     let prev = Predicate::EQRL(x.clone(), b.clone());
-//     let next = Predicate::EQRL(y.clone(), c.clone());
-//     let pred = Predicate::NEXT(Box::new(prev), Box::new(next));
-//     let glob_pred = Predicate::GLOB(Box::new(pred));
-//     let ast = PredicateToAstZ3::new(&ctx, &glob_pred, "guard", &3);
-//     assert_eq!("(and (= x_s0 b)\n     (= y_s1 c)\n     (= x_s1 b)\n     (= y_s2 c)\n     (= x_s2 b)\n     (= y_s3 c)\n     (= x_s3 b)\n     (= y_s4 c))", ast_to_string_z3!(&ctx, ast));
-
-// }
+    let prev = Predicate::EQRL(x.clone(), b.clone());
+    let next = Predicate::EQRL(y.clone(), c.clone());
+    let pred = Predicate::AFTER(Box::new(prev), Box::new(next));
+    let glob_pred = Predicate::ALWAYS(Box::new(pred));
+    let ast = PredicateToAstZ3::new(&ctx, &glob_pred, "guard", &3);
+    assert_eq!("(and (= x_s0 b)\n     (= y_s1 c)\n     (= x_s1 b)\n     (= y_s2 c)\n     (= x_s2 b)\n     (= y_s3 c)\n     (= x_s3 b)\n     (= y_s4 c))", ast_to_string_z3!(&ctx, ast));
+}
 
 #[test]
-fn test_alonce_predicate(){
+fn test_eventually_predicate(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
     let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
@@ -420,34 +439,56 @@ fn test_alonce_predicate(){
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
     let prev = Predicate::EQRL(x.clone(), b.clone());
-    let pred = Predicate::ALONCE(Box::new(prev));
+    let pred = Predicate::EVENTUALLY(Box::new(prev));
     let ast = PredicateToAstZ3::new(&ctx, &pred, "guard", &3);
     assert_eq!("(or (= x_s0 b) (= x_s1 b) (= x_s2 b) (= x_s3 b))", ast_to_string_z3!(&ctx, ast));
 }
 
-// #[test]
-// fn test_alonce_next_predicate(){
+#[test]
+fn test_eventually_after_predicate(){
 
-//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-//     let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
-//     let b = "b".to_string();
-//     let c = "c".to_string();
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let b = "b".to_string();
+    let c = "c".to_string();
 
-//     let cfg = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&cfg);
-//     let slv = SolverZ3::new(&ctx);
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
 
-//     let left = Predicate::EQLR(b, x);
-//     let right = Predicate::EQLR(c, y);
-//     let next = Predicate::NEXT(Box::new(left), Box::new(right));
-//     let alonce = Predicate::ALONCE(Box::new(next));
-//     let glob_pred = PredicateToAstZ3::new(&ctx, &alonce, "guard", &3);
-    
-//     // assert_eq!("(= x_s3 b)", ast_to_string_z3!(&ctx, pred));
+    let left = Predicate::EQLR(b, x);
+    let right = Predicate::EQLR(c, y);
+    let next = Predicate::AFTER(Box::new(left), Box::new(right));
+    let alonce = Predicate::EVENTUALLY(Box::new(next));
+    let glob_pred = PredicateToAstZ3::new(&ctx, &alonce, "guard", &3);
 
-//     slv_assert_z3!(&ctx, &slv, glob_pred);
-//     slv_check_z3!(&ctx, &slv);
+    slv_assert_z3!(&ctx, &slv, glob_pred);
+    slv_check_z3!(&ctx, &slv);
 
-//     let model = slv_get_model_z3!(&ctx, &slv);
-//     assert_eq!("x_s2 -> a\nx_s0 -> b\ny_s1 -> c\ny_s4 -> b\ny_s3 -> b\ny_s2 -> b\nx_s3 -> b\nx_s1 -> a\n", model_to_string_z3!(&ctx, model));
-// }
+    let model = slv_get_model_z3!(&ctx, &slv);
+    assert_eq!("x_s2 -> a\nx_s0 -> b\ny_s1 -> c\ny_s4 -> b\ny_s3 -> b\ny_s2 -> b\nx_s3 -> b\nx_s1 -> a\n", model_to_string_z3!(&ctx, model));
+}
+
+#[test]
+fn test_trace_pbeq_predicate(){
+
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let b = "b".to_string();
+
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
+
+    let pred = Predicate::EQRL(x.clone(), b);
+
+    let trace_pbeq = Predicate::TPBEQ(Box::new(pred), 2);
+    let trace_pbeq_pred = PredicateToAstZ3::new(&ctx, &trace_pbeq, "guard", &4);
+
+    assert_eq!("((_ pbeq 2 1 1 1 1 1) (= x_s0 b) (= x_s1 b) (= x_s2 b) (= x_s3 b) (= x_s4 b))", ast_to_string_z3!(&ctx, trace_pbeq_pred));
+
+    slv_assert_z3!(&ctx, &slv, trace_pbeq_pred);
+    slv_check_z3!(&ctx, &slv);
+
+    let model = slv_get_model_z3!(&ctx, &slv);
+    assert_eq!("x_s2 -> a\nx_s0 -> b\nx_s3 -> a\nx_s1 -> b\nx_s4 -> a\n", model_to_string_z3!(&ctx, model));
+}
