@@ -1,4 +1,3 @@
-use std::ffi::{CStr, CString};
 use z3_sys::*;
 use mini_sp_smt::*;
 use super::*;
@@ -8,6 +7,12 @@ pub struct AfterZ3<'ctx> {
     pub x: Z3_ast,
     pub y: Z3_ast
 }
+
+// pub struct SomewhenAfterZ3<'ctx> {
+//     pub ctx: &'ctx ContextZ3,
+//     pub x: Z3_ast,
+//     pub y: Z3_ast
+// }
 
 pub struct TracePBEQZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
@@ -22,6 +27,22 @@ impl <'ctx> AfterZ3<'ctx> {
             PredicateToAstZ3::new(&ctx, y, r#type, &(step + 1))))
     } 
 }
+
+// // chronological order
+// impl <'ctx> SomewhenAfterZ3<'ctx> {
+//     pub fn new(ctx: &ContextZ3, x: &Predicate, y: &Predicate, r#type: &str, step: &u32) -> Z3_ast {
+//         let mut after = vec!();
+//         for s in *step + 1..*max_step + 1{
+//             after.push(PredicateToAstZ3::new(&ctx, y, r#type, &s))
+//         }
+//         ANDZ3::new(&ctx, 
+//             vec!(
+//                 PredicateToAstZ3::new(&ctx, x, r#type, &step),
+//                 ORZ3::new(&ctx, after)
+//             )
+//         )
+//     } 
+// }
 
 // Exactly n times true in a trace
 impl <'ctx> TracePBEQZ3<'ctx> {
@@ -53,6 +74,24 @@ fn test_after_ltlf(){
 
     assert_eq!("(and (= x_s5 b) (= x_s6 c))", ast_to_string_z3!(&ctx, next_ltlf));
 }
+
+// #[test]
+// fn test_safter_ltlf(){
+
+//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+//     let b = "b".to_string();
+//     let c = "c".to_string();
+
+//     let cfg = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&cfg);
+
+//     let prev = Predicate::EQRL(x.clone(), b);
+//     let next = Predicate::EQRL(x.clone(), c);
+
+//     let next_ltlf = SomewhenAfterZ3::new(&ctx, &prev, &next, "guard", &3, &6);
+
+//     assert_eq!("(and (= x_s3 b) (or (= x_s4 c) (= x_s5 c) (= x_s6 c)))", ast_to_string_z3!(&ctx, next_ltlf));
+// }
 
 #[test]
 fn test_trace_pbeq_ltlf(){

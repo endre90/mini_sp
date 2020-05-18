@@ -74,18 +74,21 @@
 //     trans: String,
 // }
 
-// pub struct GetPlanningResultZ3<'ctx> {
-//     pub ctx: &'ctx ContextZ3,
-//     pub model: Z3_model,
-//     pub nr_steps: u32,
-//     pub frames: PlanningResult
-// }
+
 
 // pub struct GetParamPlanningResultZ3<'ctx> {
 //     pub ctx: &'ctx ContextZ3,
 //     pub model: Z3_model,
 //     pub level: u32,
 //     pub concat: u32,
+//     pub nr_steps: u32,
+//     pub frames: PlanningResult
+// }
+
+
+// pub struct GetPlanningResultZ3<'ctx> {
+//     pub ctx: &'ctx ContextZ3,
+//     pub model: Z3_model,
 //     pub nr_steps: u32,
 //     pub frames: PlanningResult
 // }

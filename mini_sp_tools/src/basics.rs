@@ -1,7 +1,3 @@
-use std::ffi::{CStr, CString};
-use std::time::{Duration, Instant};
-use super::*;
-
 #[derive(Hash, Eq, Debug, PartialEq, Clone, PartialOrd, Ord)]
 pub struct BoolVariable {
     pub name: String,

@@ -1,5 +1,3 @@
-use std::ffi::{CStr, CString};
-use std::time::{Duration, Instant};
 use z3_sys::*;
 use mini_sp_smt::*;
 use super::*;
@@ -22,10 +20,12 @@ pub enum Predicate {
     PBEQ(Vec<Predicate>, i32), // exactly n true predicates in a step
     NEXT(Box<Predicate>), // in the next step
     ALWAYS(Box<Predicate>), // in every step of the trace
+    NEVER(Box<Predicate>), // neve in the trace
     EVENTUALLY(Box<Predicate>), // at least once in the trace
     UNTIL(Box<Predicate>, Box<Predicate>), // first one true until the second
     RELEASE(Box<Predicate>, Box<Predicate>), // first one releases the second of the duty to be true when it becomes true
     AFTER(Box<Predicate>, Box<Predicate>), // a predicate should hold in the step after the other
+    // SAFTER(Box<Predicate>, Box<Predicate>, u32), // a predicate should hold somewhen after the other, good for sequences
     TPBEQ(Box<Predicate>, u32) // exactly n times true in a trace
 }
 
@@ -59,7 +59,7 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                 match x.r#type == y.r#type {
                     true => {
                         match r#type {
-                            "guard" | "state" => {
+                            "guard" | "state" | "specs" => {
                                 let sort_1 = EnumSortZ3::new(&ctx, &x.r#type, x.domain.iter().map(|x| x.as_str()).collect());
                                 let sort_2 = EnumSortZ3::new(&ctx, &y.r#type, y.domain.iter().map(|y| y.as_str()).collect());
                                 let v_1 = EnumVarZ3::new(&ctx, sort_1.r, format!("{}_s{}", x.name.to_string(), step).as_str());
@@ -106,7 +106,7 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
                 match x.r#type == y.r#type {
                     true => {
                         match r#type {
-                            "guard" | "state" => {
+                            "guard" | "state" | "specs" => {
                                 let sort_1 = EnumSortZ3::new(&ctx, &x.r#type, x.domain.iter().map(|x| x.as_str()).collect());
                                 let sort_2 = EnumSortZ3::new(&ctx, &y.r#type, y.domain.iter().map(|y| y.as_str()).collect());
                                 let v_1 = EnumVarZ3::new(&ctx, sort_1.r, format!("{}_s{}", x.name.to_string(), step).as_str());
@@ -141,10 +141,12 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
             Predicate::PBEQ(x, k) => PBEQZ3::new(&ctx, x.iter().map(|z| PredicateToAstZ3::new(&ctx, z, r#type, step)).collect(), *k),
             Predicate::NEXT(x) => NextZ3::new(&ctx, &x, r#type, step),
             Predicate::ALWAYS(x) => AlwaysZ3::new(&ctx, &x, r#type, step),
+            Predicate::NEVER(x) => AlwaysZ3::new(&ctx, &Predicate::NOT(x.clone()), r#type, step),
             Predicate::EVENTUALLY(x) => EventuallyZ3::new(&ctx, &x, r#type, step),
             Predicate::UNTIL(x, y) => UntilZ3::new(&ctx, &x, &y, r#type, step),
             Predicate::RELEASE(x, y) => ReleaseZ3::new(&ctx, &x, &y, r#type, step),
             Predicate::AFTER(x, y) => AfterZ3::new(&ctx, &x, &y, r#type, step),
+            // Predicate::SAFTER(x, y, z) => SomewhenAfterZ3::new(&ctx, &x, &y, r#type, step, &z),
             Predicate::TPBEQ(x, y) => TracePBEQZ3::new(&ctx, &x, r#type, &y, step)
         }
     }
@@ -392,6 +394,39 @@ fn test_after_predicate(){
     let ast = PredicateToAstZ3::new(&ctx, &pred, "guard", &3);
     assert_eq!("(and (= x_s3 b) (= x_s4 c))", ast_to_string_z3!(&ctx, ast));
 }
+
+// #[test]
+// fn test_safter_predicate(){
+
+//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+//     let b = "b".to_string();
+//     let c = "c".to_string();
+
+//     let cfg = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&cfg);
+//     let prev = Predicate::EQRL(x.clone(), b);
+//     let next = Predicate::EQRL(x.clone(), c);
+//     let pred = Predicate::SAFTER(Box::new(prev), Box::new(next), 6);
+//     let ast = PredicateToAstZ3::new(&ctx, &pred, "guard", &3);
+//     assert_eq!("(and (= x_s3 b) (or (= x_s4 c) (= x_s5 c) (= x_s6 c)))", ast_to_string_z3!(&ctx, ast));
+// }
+
+// #[test]
+// fn test_eventually_safter_predicate(){
+
+//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+//     let b = "b".to_string();
+//     let c = "c".to_string();
+
+//     let cfg = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&cfg);
+//     let prev = Predicate::EQRL(x.clone(), b);
+//     let next = Predicate::EQRL(x.clone(), c);
+//     let pred = Predicate::SAFTER(Box::new(prev), Box::new(next), 6);
+//     let alwys = Predicate::EVENTUALLY(Box::new(pred));
+//     let ast = PredicateToAstZ3::new(&ctx, &alwys, "guard", &3);
+//     assert_eq!("(or (and (= x_s0 b)\n         (or (= x_s1 c) (= x_s2 c) (= x_s3 c) (= x_s4 c) (= x_s5 c) (= x_s6 c)))\n    (and (= x_s1 b) (or (= x_s2 c) (= x_s3 c) (= x_s4 c) (= x_s5 c) (= x_s6 c)))\n    (and (= x_s2 b) (or (= x_s3 c) (= x_s4 c) (= x_s5 c) (= x_s6 c)))\n    (and (= x_s3 b) (or (= x_s4 c) (= x_s5 c) (= x_s6 c))))", ast_to_string_z3!(&ctx, ast));
+// }
 
 #[test]
 fn test_always_predicate(){

@@ -1,4 +1,3 @@
-use std::ffi::{CStr, CString};
 use z3_sys::*;
 use mini_sp_smt::*;
 use super::*;
