@@ -179,9 +179,9 @@ fn test_paramincremental_1(){
 
     let max_steps: u32 = 30;
 
-    let pose_param = Parameter::new("pose", &false);
+    let pose_param = Parameter::new("pose", &true);
     let stat_param = Parameter::new("stat", &true);
-    let cube_param = Parameter::new("cube", &false);
+    let cube_param = Parameter::new("cube", &true);
 
     let pose_domain = vec!("buffer", "home", "table");
     let stat_domain = vec!("active", "idle");
@@ -280,7 +280,7 @@ fn test_paramincremental_1(){
     );
 
     let t3 = ParamTransition::new(
-        "start_activate",
+        "start_deactivate",
         &vec!(
             ParamPredicate::new(&stat_param, &not_stat_idle),
             ParamPredicate::new(&stat_param, &not_set_stat_idle)
@@ -291,7 +291,7 @@ fn test_paramincremental_1(){
     );
 
     let t4 = ParamTransition::new(
-        "finish_activate",
+        "finish_deactivate",
         &vec!(
             ParamPredicate::new(&stat_param, &not_stat_idle),
             ParamPredicate::new(&stat_param, &set_stat_idle)
@@ -301,164 +301,148 @@ fn test_paramincremental_1(){
         )
     );
 
-    let t5 = Transition::new(
+    let t5 = ParamTransition::new(
         "start_move_to_buffer",
-        &Predicate::AND(
-            vec!(
-                stat_active.clone(),
-                set_stat_active.clone(),
-                pos_stable.clone(),
-                not_pos_buffer.clone(),
-                not_set_pos_buffer.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &pos_stable),
+            ParamPredicate::new(&pose_param, &not_pos_buffer),
+            ParamPredicate::new(&pose_param, &not_set_pos_buffer)
         ),
-        &set_pos_buffer
+        &vec!(
+            ParamPredicate::new(&pose_param, &set_pos_buffer)
+        )
     );
 
-    let t6 = Transition::new(
+    let t6 = ParamTransition::new(
         "finish_move_to_buffer",
-        &Predicate::AND(
-            vec!(
-                stat_active.clone(),
-                set_stat_active.clone(),
-                not_pos_buffer.clone(),
-                set_pos_buffer.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &not_pos_buffer),
+            ParamPredicate::new(&pose_param, &set_pos_buffer)
         ),
-        &pos_buffer
+        &vec!(
+            ParamPredicate::new(&pose_param, &pos_buffer)
+        )
     );
 
-    let t7 = Transition::new(
+    let t7 = ParamTransition::new(
         "start_move_to_table",
-        &Predicate::AND(
-            vec!(
-                stat_active.clone(),
-                set_stat_active.clone(),
-                pos_stable.clone(),
-                not_pos_table.clone(),
-                not_set_pos_table.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &pos_stable),
+            ParamPredicate::new(&pose_param, &not_pos_table),
+            ParamPredicate::new(&pose_param, &not_set_pos_table)
         ),
-        &set_pos_table
+        &vec!(
+            ParamPredicate::new(&pose_param, &set_pos_table)
+        )
     );
 
-    let t8 = Transition::new(
+    let t8 = ParamTransition::new(
         "finish_move_to_table",
-        &Predicate::AND(
-            vec!(
-                stat_active.clone(),
-                set_stat_active.clone(),
-                not_pos_table.clone(),
-                set_pos_table.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &not_pos_table),
+            ParamPredicate::new(&pose_param, &set_pos_table)
         ),
-        &pos_table
+        &vec!(
+            ParamPredicate::new(&pose_param, &pos_table)
+        )
     );
 
-    let t9 = Transition::new(
+    let t9 = ParamTransition::new(
         "start_move_to_home",
-        &Predicate::AND(
-            vec!(
-                stat_active.clone(),
-                set_stat_active.clone(),
-                pos_stable.clone(),
-                not_pos_home.clone(),
-                not_set_pos_home.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &pos_stable),
+            ParamPredicate::new(&pose_param, &not_pos_home),
+            ParamPredicate::new(&pose_param, &not_set_pos_home)
         ),
-        &set_pos_home
+        &vec!(
+            ParamPredicate::new(&pose_param, &set_pos_home)
+        )
     );
 
-    let t10 = Transition::new(
+    let t10 = ParamTransition::new(
         "finish_move_to_home",
-        &Predicate::AND(
-            vec!(
-                stat_active.clone(),
-                set_stat_active.clone(),
-                not_pos_home.clone(),
-                set_pos_home.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &not_pos_home),
+            ParamPredicate::new(&pose_param, &set_pos_home)
         ),
-        &pos_home
+        &vec!(
+            ParamPredicate::new(&pose_param, &pos_home)
+        )
     );
 
-    let t11 = Transition::new(
+    let t11 = ParamTransition::new(
         "take_cube_from_buffer",
-        &Predicate::AND(
-            vec!(
-                buffer_cube.clone(),
-                stat_active.clone(),
-                set_stat_active.clone(),
-                pos_buffer.clone(),
-                set_pos_buffer.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&cube_param, &buffer_cube),
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &pos_buffer),
+            ParamPredicate::new(&pose_param, &set_pos_buffer)
         ),
-        &Predicate::AND(
-            vec!(
-                gripper_cube.clone(),
-                table_empty.clone(),
-                buffer_empty.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&cube_param, &gripper_cube),
+            ParamPredicate::new(&cube_param, &buffer_empty),
+            ParamPredicate::new(&cube_param, &table_empty)
         )
     );
 
-    let t12 = Transition::new(
+    let t12 = ParamTransition::new(
         "take_cube_from_table",
-        &Predicate::AND(
-            vec!(
-                table_cube.clone(),
-                stat_active.clone(),
-                set_stat_active.clone(),
-                pos_table.clone(),
-                set_pos_table.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&cube_param, &table_cube),
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &pos_table),
+            ParamPredicate::new(&pose_param, &set_pos_table)
         ),
-        &Predicate::AND(
-            vec!(
-                gripper_cube.clone(),
-                table_empty.clone(),
-                buffer_empty.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&cube_param, &gripper_cube),
+            ParamPredicate::new(&cube_param, &buffer_empty),
+            ParamPredicate::new(&cube_param, &table_empty)
         )
     );
 
-    let t13 = Transition::new(
+    let t13 = ParamTransition::new(
         "leave_cube_at_buffer",
-        &Predicate::AND(
-            vec!(
-                gripper_cube.clone(),
-                stat_active.clone(),
-                set_stat_active.clone(),
-                pos_buffer.clone(),
-                set_pos_buffer.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&cube_param, &gripper_cube),
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &pos_buffer),
+            ParamPredicate::new(&pose_param, &set_pos_buffer)
         ),
-        &Predicate::AND(
-            vec!(
-                gripper_empty.clone(),
-                table_empty.clone(),
-                buffer_cube.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&cube_param, &gripper_empty),
+            ParamPredicate::new(&cube_param, &buffer_cube),
+            ParamPredicate::new(&cube_param, &table_empty)
         )
     );
 
-    let t14 = Transition::new(
+    let t14 = ParamTransition::new(
         "leave_cube_at_table",
-        &Predicate::AND(
-            vec!(
-                gripper_cube.clone(),
-                stat_active.clone(),
-                set_stat_active.clone(),
-                pos_table.clone(),
-                set_pos_table.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&cube_param, &gripper_cube),
+            ParamPredicate::new(&stat_param, &stat_active),
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&pose_param, &pos_table),
+            ParamPredicate::new(&pose_param, &set_pos_table)
         ),
-        &Predicate::AND(
-            vec!(
-                gripper_empty.clone(),
-                table_cube.clone(),
-                buffer_empty.clone()
-            )
+        &vec!(
+            ParamPredicate::new(&cube_param, &gripper_empty),
+            ParamPredicate::new(&cube_param, &buffer_empty),
+            ParamPredicate::new(&cube_param, &table_cube)
         )
     );
 
@@ -507,31 +491,17 @@ fn test_paramincremental_1(){
 
     let init = vec!(
         ParamPredicate::new(&stat_param, &stat_stable),
-        ParamPredicate::new(&stat_param, &stat_idle)
+        ParamPredicate::new(&stat_param, &stat_idle),
+        ParamPredicate::new(&pose_param, &pos_stable),
+        ParamPredicate::new(&pose_param, &pos_buffer),
+        ParamPredicate::new(&cube_param, &table_cube)
     );
 
     let goal = vec!(
-        ParamPredicate::new(&stat_param, &stat_stable),
-        ParamPredicate::new(&stat_param, &stat_active)
+        ParamPredicate::new(&stat_param, &stat_idle),
+        ParamPredicate::new(&pose_param, &pos_table),
+        ParamPredicate::new(&cube_param, &buffer_cube)
     );
-
-    // let init = Predicate::AND(
-    //     vec!(
-    //         pos_stable.clone(),
-    //         pos_buffer.clone(),
-    //         stat_stable.clone(),
-    //         stat_idle.clone(),
-    //         table_cube.clone()
-    //     )
-    // );
-
-    // let goal = Predicate::AND(
-    //     vec!(
-    //         pos_table.clone(),
-    //         stat_idle.clone(),
-    //         buffer_cube.clone()
-    //     )
-    // );
 
     let specs = Predicate::AND(
         vec!(
@@ -539,10 +509,10 @@ fn test_paramincremental_1(){
         )
     );
 
-    let trans = vec!(t1, t2, t3, t4); //, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
+    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
     let params = vec!(pose_param, stat_param, cube_param);
 
-    let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &Predicate::TRUE, &max_steps);
+    let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &specs, &max_steps);
     
     let result = ParamIncremental::new(&problem, &params, &0, &0);
 
