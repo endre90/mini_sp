@@ -13,6 +13,9 @@ pub mod incremental;
 pub use crate::incremental::{Transition, PlanningProblem, Incremental, KeepVariableValues,
     PlanningFrame, GetPlanningResultZ3, PlanningResult};
 
+pub mod paramincremental;
+pub use crate::paramincremental::{};
+
 pub mod compositional;
 pub use crate::compositional::{};
 

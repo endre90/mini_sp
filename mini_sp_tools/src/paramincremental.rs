@@ -4,66 +4,139 @@ use mini_sp_smt::*;
 use super::*;
 
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
-pub struct Transition {
+pub struct Parameter {
     pub name: String,
-    pub guard: Predicate,
-    pub update: Predicate
+    pub value: bool
+}
+
+// an option to compose more complex predicates?
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct ParamPredicate {
+    pub param: Parameter,
+    pub pred: Predicate
 }
 
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
-pub struct PlanningProblem {
+pub struct GeneratePredicate {
+    pub params: Vec<Parameter>,
+    pub ppreds: Vec<ParamPredicate>,
+    pub pred: Predicate
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct GenerateTransitions {
+    pub params: Vec<Parameter>,
+    pub ptrans: Vec<ParamTransition>,
+    pub trans: Vec<Transition>
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct ParamTransition {
     pub name: String,
-    pub init: Predicate,
-    pub goal: Predicate,
-    pub trans: Vec<Transition>,
-    pub ltl_specs: Predicate,
+    pub guard: Vec<ParamPredicate>,
+    pub update: Vec<ParamPredicate>
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct ParamPlanningProblem {
+    pub name: String,
+    pub params: Vec<Parameter>,
+    pub init: Vec<ParamPredicate>,
+    pub goal: Vec<ParamPredicate>,
+    pub trans: Vec<ParamTransition>,
+    // pub ltl_specs: Vec<ParamPredicate>,
+    ltl_specs: Predicate,
     pub max_steps: u32
 }
 
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
-pub struct Incremental {
-    pub prob: PlanningProblem
+pub struct ParamIncremental {
+    pub prob: ParamPlanningProblem
 }
 
-#[derive(Clone)]
-pub struct KeepVariableValues<'ctx> {
-    pub ctx: &'ctx ContextZ3
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
-pub struct PlanningFrame {
-    pub state: Vec<String>,
-    pub trans: String,
-}
-
-pub struct GetPlanningResultZ3<'ctx> {
-    pub ctx: &'ctx ContextZ3,
-    pub model: Z3_model,
-    pub nr_steps: u32,
-    pub frames: PlanningResult
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
-pub struct PlanningResult {
+#[derive(PartialEq, Clone, Debug)]
+pub struct ParamPlanningResult {
     pub plan_found: bool,
     pub plan_length: u32,
+    pub level: u32,
+    pub concat: u32,
     pub trace: Vec<PlanningFrame>,
     pub time_to_solve: std::time::Duration,
 }
 
-impl Transition {
-    pub fn new(name: &str, guard: &Predicate, update: &Predicate) -> Transition {
-        Transition { name: name.to_string(),
-                     guard: guard.clone(),
-                     update: update.clone() }
+pub struct GetParamPlanningResultZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub model: Z3_model,
+    pub level: u32,
+    pub concat: u32,
+    pub nr_steps: u32,
+    pub frames: PlanningResult
+}
+
+impl Parameter {
+    pub fn new(name: &str, value: &bool) -> Parameter {
+        Parameter {
+            name: name.to_string(),
+            value: *value
+        }
     }
 }
 
-impl PlanningProblem {
-    pub fn new(name: &str, init: &Predicate, goal: &Predicate, trans: &Vec<Transition>,
-        ltl_specs: &Predicate, max_steps: &u32) -> PlanningProblem {
-        PlanningProblem {
+impl ParamPredicate {
+    pub fn new(param: &Parameter, pred: &Predicate) -> ParamPredicate {
+        ParamPredicate {
+            param: param.clone(),
+            pred: pred.clone()
+        }
+    }
+}
+
+impl GeneratePredicate {
+    pub fn new(params: &Vec<Parameter>, ppreds: &Vec<ParamPredicate>) -> Predicate {
+        let mut pred_vec = vec!();
+        for ppred in ppreds {
+            for param in params {
+                if ppred.param.name == param.name && param.value {
+                    pred_vec.push(ppred.pred.clone())
+                }
+            }
+        }
+        pred_vec.sort();
+        pred_vec.dedup();
+        Predicate::AND(pred_vec)
+    }
+}
+
+impl GenerateTransitions {
+    pub fn new(params: &Vec<Parameter>, ptrans: &Vec<ParamTransition>) -> Vec<Transition> {
+        let mut trans_vec = vec!();
+        for pt in ptrans {
+            let guard = GeneratePredicate::new(&params, &pt.guard);
+            let update = GeneratePredicate::new(&params, &pt.update);
+            trans_vec.push(
+                Transition::new(pt.name.as_str(), &guard, &update)
+            )
+        }
+        trans_vec
+    }
+}
+
+impl ParamTransition {
+    pub fn new(name: &str, guard: &Vec<ParamPredicate>, update: &Vec<ParamPredicate>) -> ParamTransition {
+        ParamTransition {
             name: name.to_string(),
+            guard: guard.iter().map(|x| x.clone()).collect::<Vec<ParamPredicate>>(),
+            update: update.iter().map(|x| x.clone()).collect::<Vec<ParamPredicate>>()
+        }
+    }
+}
+
+impl ParamPlanningProblem {
+    pub fn new(name: &str, params: &Vec<Parameter>, init: &Vec<ParamPredicate>, goal: &Vec<ParamPredicate>, 
+        trans: &Vec<ParamTransition>, ltl_specs: &Predicate, max_steps: &u32) -> ParamPlanningProblem {
+        ParamPlanningProblem {
+            name: name.to_string(),
+            params: params.clone(),
             init: init.clone(),
             goal: goal.clone(),
             trans: trans.clone(),
@@ -73,156 +146,42 @@ impl PlanningProblem {
     }
 }
 
-impl <'ctx> KeepVariableValues<'ctx> {
-    pub fn new(ctx: &'ctx ContextZ3, vars: &Vec<EnumVariable>, trans: &Transition, step: &u32) -> Z3_ast {
+impl ParamIncremental {
+    pub fn new(prob: &ParamPlanningProblem, params: &Vec<Parameter>, level: &u32, concat: &u32) -> ParamPlanningResult {
+        let generated_init = GeneratePredicate::new(&params, &prob.init);
+        let generated_goal = GeneratePredicate::new(&params, &prob.goal);
+        let generated_trans = GenerateTransitions::new(&params, &prob.trans);
 
-        let changed = GetPredicateVars::new(&trans.update);
-        let unchanged = IterOps::difference(vars, &changed);
-        let mut assert_vec = vec!();
-        for u in unchanged {
-            let sort = EnumSortZ3::new(&ctx, &u.r#type, u.domain.iter().map(|x| x.as_str()).collect());
-            let v_1 = EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", u.name.to_string(), step).as_str());
-            let v_2 = EnumVarZ3::new(&ctx, sort.r, format!("{}_s{}", u.name.to_string(), step - 1).as_str());
-            assert_vec.push(EQZ3::new(&ctx, v_1, v_2));
-        }
-        ANDZ3::new(&ctx, assert_vec)
-    }
-}
+        let generated_prob = PlanningProblem::new(
+            prob.name.as_str(), 
+            &generated_init, 
+            &generated_goal, 
+            &generated_trans, 
+            &prob.ltl_specs,
+            &prob.max_steps
+        );
 
-impl Incremental {
-    pub fn new(prob: &PlanningProblem) -> PlanningResult {
+        let inc_result = Incremental::new(&generated_prob);
 
-        let cfg = ConfigZ3::new();
-        let ctx = ContextZ3::new(&cfg);
-        let slv = SolverZ3::new(&ctx);
-
-        let problem_vars = GetProblemVars::new(&prob);
-
-        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.init, "state", &0));
-
-        SlvPushZ3::new(&ctx, &slv); // create backtracking point
-        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &0));
-        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "state", &0));
-
-        let now = Instant::now();
-        let mut plan_found: bool = false;
-
-        let mut step: u32 = 0;
-
-        while step < prob.max_steps + 1 {
-            step = step + 1;
-            if SlvCheckZ3::new(&ctx, &slv) != 1 {
-                SlvPopZ3::new(&ctx, &slv, 1);
-
-                let mut all_trans = vec!();
-                for t in &prob.trans {
-                    let name = format!("{}_t{}", &t.name, step);
-                    let guard = PredicateToAstZ3::new(&ctx, &t.guard, "guard", &(step - 1));
-                    let update = PredicateToAstZ3::new(&ctx, &t.update, "update", &(step));
-                    let keeps = KeepVariableValues::new(&ctx, &problem_vars, &t, &step);
-
-                    all_trans.push(ANDZ3::new(&ctx, 
-                        vec!(EQZ3::new(&ctx, 
-                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), name.as_str()), 
-                            BoolZ3::new(&ctx, true)),
-                        guard, update, keeps)));
-                }
-
-                SlvAssertZ3::new(&ctx, &slv, ORZ3::new(&ctx, all_trans));
-                
-                SlvPushZ3::new(&ctx, &slv);
-                SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &step));
-                SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "state", &step));
-        
-            } else {
-                plan_found = true;
-                break;
-            }
-        }
-
-        let planning_time = now.elapsed();
-
-        let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
-        let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
-        for asrt in asrtvec {
-            println!("{}", AstToStringZ3::new(&ctx, asrt));
-        }
-        // let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
-        
-        if plan_found == true {
-            let model = SlvGetModelZ3::new(&ctx, &slv);
-            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
-            result
-        } else {
-            let model = FreshModelZ3::new(&ctx);
-            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
-            result
-        }              
-    }   
-}
-
-impl PlanningFrame {
-    pub fn new(state: Vec<&str>, trans: &str) -> PlanningFrame {
-        PlanningFrame {
-            state: state.iter().map(|x| x.to_string()).collect(),
-            trans: trans.to_string()
-        }
-    }
-}
-
-impl <'ctx> GetPlanningResultZ3<'ctx> {
-    pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
-    planning_time: std::time::Duration, plan_found: bool) -> PlanningResult {
-        let model_str = ModelToStringZ3::new(&ctx, model);
-        let mut model_vec = vec!();
-
-        let num = ModelGetNumConstsZ3::new(&ctx, model);
-        let mut lines = model_str.lines();
-        let mut i: u32 = 0;
-
-        while i < num {
-            model_vec.push(lines.next().unwrap_or(""));
-            i = i + 1;
-        }
-
-        // println!("{:#?}", model_vec);
-
-        let mut trace: Vec<PlanningFrame> = vec!();
-        
-        for i in 0..nr_steps {
-            let mut frame: PlanningFrame = PlanningFrame::new(vec!(), "");
-            for j in &model_vec {
-                let sep: Vec<&str> = j.split(" -> ").collect();
-                if sep[0].ends_with(&format!("_s{}", i)){
-                    let trimmed_state = sep[0].trim_end_matches(&format!("_s{}", i));
-                    match sep[1] {
-                        "false" => frame.state.push(sep[0].to_string()),
-                        "true" => frame.state.push(sep[0].to_string()),
-                        _ => frame.state.push(format!("{} -> {}", trimmed_state, sep[1])),
-                    }
-                } else if sep[0].ends_with(&format!("_t{}", i)) && sep[1] == "true" {
-                    let trimmed_trans = sep[0].trim_end_matches(&format!("_t{}", i));
-                    frame.trans = trimmed_trans.to_string();
-                }
-            }
-            if model_vec.len() != 0 {
-                trace.push(frame);
-            }
-        }
-
-        PlanningResult {
-            plan_found: plan_found,
-            plan_length: nr_steps - 1,
-            trace: trace,
-            time_to_solve: planning_time,
+        ParamPlanningResult {
+            plan_found: inc_result.plan_found,
+            plan_length: inc_result.plan_length,
+            level: *level,
+            concat: *concat,
+            trace: inc_result.trace,
+            time_to_solve: inc_result.time_to_solve
         }
     }
 }
 
 #[test]
-fn test_incremental_1(){
+fn test_paramincremental_1(){
 
     let max_steps: u32 = 30;
+
+    let pose_param = Parameter::new("pose", &false);
+    let stat_param = Parameter::new("stat", &true);
+    let cube_param = Parameter::new("cube", &false);
 
     let pose_domain = vec!("buffer", "home", "table");
     let stat_domain = vec!("active", "idle");
@@ -298,48 +257,48 @@ fn test_incremental_1(){
     let not_pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
     let not_stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
 
-    let t1 = Transition::new(
-        "start_activate", 
-        &Predicate::AND(
-            vec!(
-                not_stat_active.clone(),
-                not_set_stat_active.clone()
-            )
+    let t1 = ParamTransition::new(
+        "start_activate",
+        &vec!(
+            ParamPredicate::new(&stat_param, &not_stat_active),
+            ParamPredicate::new(&stat_param, &not_set_stat_active)
         ),
-        &set_stat_active
+        &vec!(
+            ParamPredicate::new(&stat_param, &set_stat_active)
+        )
     );
 
-    let t2 = Transition::new(
-        "finish_activate", 
-        &Predicate::AND(
-            vec!(
-                set_stat_active.clone(),
-                not_stat_active.clone()
-            )
+    let t2 = ParamTransition::new(
+        "finish_activate",
+        &vec!(
+            ParamPredicate::new(&stat_param, &set_stat_active),
+            ParamPredicate::new(&stat_param, &not_stat_active)
         ),
-        &stat_active
+        &vec!(
+            ParamPredicate::new(&stat_param, &stat_active)
+        )
     );
 
-    let t3 = Transition::new(
-        "start_deactivate", 
-        &Predicate::AND(
-            vec!(
-                not_stat_idle.clone(),
-                not_set_stat_idle.clone()
-            )
+    let t3 = ParamTransition::new(
+        "start_activate",
+        &vec!(
+            ParamPredicate::new(&stat_param, &not_stat_idle),
+            ParamPredicate::new(&stat_param, &not_set_stat_idle)
         ),
-        &set_stat_idle
+        &vec!(
+            ParamPredicate::new(&stat_param, &set_stat_idle)
+        )
     );
 
-    let t4 = Transition::new(
-        "finish_deactivate", 
-        &Predicate::AND(
-            vec!(
-                not_stat_idle.clone(),
-                set_stat_idle.clone()
-            )
+    let t4 = ParamTransition::new(
+        "finish_activate",
+        &vec!(
+            ParamPredicate::new(&stat_param, &not_stat_idle),
+            ParamPredicate::new(&stat_param, &set_stat_idle)
         ),
-        &stat_idle
+        &vec!(
+            ParamPredicate::new(&stat_param, &stat_idle)
+        )
     );
 
     let t5 = Transition::new(
@@ -546,23 +505,33 @@ fn test_incremental_1(){
         )
     );
 
-    let init = Predicate::AND(
-        vec!(
-            pos_stable.clone(),
-            pos_buffer.clone(),
-            stat_stable.clone(),
-            stat_idle.clone(),
-            table_cube.clone()
-        )
+    let init = vec!(
+        ParamPredicate::new(&stat_param, &stat_stable),
+        ParamPredicate::new(&stat_param, &stat_idle)
     );
 
-    let goal = Predicate::AND(
-        vec!(
-            pos_table.clone(),
-            stat_idle.clone(),
-            buffer_cube.clone()
-        )
+    let goal = vec!(
+        ParamPredicate::new(&stat_param, &stat_stable),
+        ParamPredicate::new(&stat_param, &stat_active)
     );
+
+    // let init = Predicate::AND(
+    //     vec!(
+    //         pos_stable.clone(),
+    //         pos_buffer.clone(),
+    //         stat_stable.clone(),
+    //         stat_idle.clone(),
+    //         table_cube.clone()
+    //     )
+    // );
+
+    // let goal = Predicate::AND(
+    //     vec!(
+    //         pos_table.clone(),
+    //         stat_idle.clone(),
+    //         buffer_cube.clone()
+    //     )
+    // );
 
     let specs = Predicate::AND(
         vec!(
@@ -570,11 +539,12 @@ fn test_incremental_1(){
         )
     );
 
-    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
+    let trans = vec!(t1, t2, t3, t4); //, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
+    let params = vec!(pose_param, stat_param, cube_param);
 
-    let problem = PlanningProblem::new("problem_1", &init, &goal, &trans, &specs, &max_steps);
+    let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &Predicate::TRUE, &max_steps);
     
-    let result = Incremental::new(&problem);
+    let result = ParamIncremental::new(&problem, &params, &0, &0);
 
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
