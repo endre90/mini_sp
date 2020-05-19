@@ -14,10 +14,11 @@ pub use crate::incremental::{Transition, PlanningProblem, Incremental, KeepVaria
     PlanningFrame, GetPlanningResultZ3, PlanningResult};
 
 pub mod paramincremental;
-pub use crate::paramincremental::{};
+pub use crate::paramincremental::{Parameter, ParamPredicate, ParamTransition,
+    ParamPlanningProblem, ParamIncremental, ParamPlanningResult};
 
 pub mod compositional;
-pub use crate::compositional::{};
+pub use crate::compositional::{Activate};
 
 pub mod predicates;
 pub use crate::predicates::{Predicate, PredicateToAstZ3};

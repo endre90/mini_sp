@@ -514,7 +514,10 @@ fn test_paramincremental_1(){
 
     let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &specs, &max_steps);
     
-    let result = ParamIncremental::new(&problem, &params, &0, &0);
+    let level: u32 = 0;
+    let concat: u32 = 0;
+
+    let result = ParamIncremental::new(&problem, &params, &level, &concat);
 
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
