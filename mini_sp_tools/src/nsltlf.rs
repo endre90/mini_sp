@@ -60,7 +60,7 @@ impl <'ctx> TracePBEQZ3<'ctx> {
 #[test]
 fn test_after_ltlf(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "c".to_string();
 
@@ -96,7 +96,7 @@ fn test_after_ltlf(){
 #[test]
 fn test_trace_pbeq_ltlf(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
 
     let cfg = ConfigZ3::new();

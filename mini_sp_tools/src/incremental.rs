@@ -230,15 +230,15 @@ fn test_incremental_1(){
     let gripper_domain = vec!("cube", "ball", "empty");
     let table_domain = vec!("cube", "ball", "empty");
 
-    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain);
-    let ref_pos = EnumVariable::new("ref_pos", "pose", &pose_domain);
+    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain, None);
+    let ref_pos = EnumVariable::new("ref_pos", "pose", &pose_domain, None);
 
-    let act_stat = EnumVariable::new("act_stat", "status", &stat_domain);
-    let ref_stat = EnumVariable::new("ref_stat", "status", &stat_domain);
+    let act_stat = EnumVariable::new("act_stat", "status", &stat_domain, None);
+    let ref_stat = EnumVariable::new("ref_stat", "status", &stat_domain, None);
 
-    let buffer = EnumVariable::new("buffer_cube", "buffer", &buffer_domain);
-    let gripper = EnumVariable::new("gripper_cube", "gripper", &gripper_domain);
-    let table = EnumVariable::new("table_cube", "table", &table_domain);
+    let buffer = EnumVariable::new("buffer_cube", "buffer", &buffer_domain, None);
+    let gripper = EnumVariable::new("gripper_cube", "gripper", &gripper_domain, None);
+    let table = EnumVariable::new("table_cube", "table", &table_domain, None);
 
     // act stat predicates
     let stat_active = Predicate::EQRL(act_stat.clone(), String::from("active"));

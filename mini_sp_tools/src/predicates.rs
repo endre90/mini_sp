@@ -29,11 +29,24 @@ pub enum Predicate {
     TPBEQ(Box<Predicate>, u32) // exactly n times true in a trace
 }
 
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct ParamPredicate {
+    pub preds: Vec<Predicate>
+}
+
 pub struct PredicateToAstZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub pred: Predicate,
     pub step: u32,
     pub r: Z3_ast
+}
+
+impl ParamPredicate {
+    pub fn new(preds: &Vec<&Predicate>) -> ParamPredicate {
+        ParamPredicate {
+            preds: preds.iter().map(|&x| x.clone()).collect()
+        }
+    }
 }
 
 impl <'ctx> PredicateToAstZ3<'ctx> {
@@ -175,8 +188,8 @@ fn test_false_predicate(){
 #[test]
 fn test_not_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
@@ -188,9 +201,9 @@ fn test_not_predicate(){
 #[test]
 fn test_and_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
-    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
+    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"), None);
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
@@ -202,9 +215,9 @@ fn test_and_predicate(){
 #[test]
 fn test_or_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
-    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
+    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"), None);
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
@@ -216,7 +229,7 @@ fn test_or_predicate(){
 #[test]
 fn test_eqrl_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
 
     let cfg = ConfigZ3::new();
@@ -230,7 +243,7 @@ fn test_eqrl_predicate(){
 #[should_panic(expected = "Error 6f789b86-7f6c-4426-ab0f-6b5b72dd2c55: Value 'e' not in the domain of variable 'x'.")]
 fn test_eqrl_predicate_panic(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let e = "e".to_string();
 
     let cfg = ConfigZ3::new();
@@ -242,9 +255,9 @@ fn test_eqrl_predicate_panic(){
 #[test]
 fn test_eqrr_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
-    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
+    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"), None);
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
@@ -257,8 +270,8 @@ fn test_eqrr_predicate(){
 #[should_panic(expected = "Error 53b0fd14-1ddd-4bf0-8dc7-d372d6ad8c99: Predicate type 'other' is not allowed.")]
 fn test_eqrr_predicate_panic_1(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
@@ -270,8 +283,8 @@ fn test_eqrr_predicate_panic_1(){
 #[should_panic(expected = "Error c8022e33-ed30-43af-8e45-8cfdaf09e8a5: Sorts 'letters' and 'numbers' are incompatible.")]
 fn test_eqrr_predicate_panic_2(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "numbers", &vec!("1", "2", "3", "4"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "numbers", &vec!("1", "2", "3", "4"), None);
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
@@ -282,7 +295,7 @@ fn test_eqrr_predicate_panic_2(){
 #[test]
 fn test_eqlr_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
 
     let cfg = ConfigZ3::new();
@@ -296,7 +309,7 @@ fn test_eqlr_predicate(){
 #[should_panic(expected = "Error c8250dfd-6d3c-4371-8fee-813ba5100d80: Value 'e' not in the domain of variable 'x'.")]
 fn test_eqlr_predicate_panic(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let e = "e".to_string();
 
     let cfg = ConfigZ3::new();
@@ -308,9 +321,9 @@ fn test_eqlr_predicate_panic(){
 #[test]
 fn test_pbeq_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
-    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
+    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "c".to_string();
     let d = "d".to_string();
@@ -336,9 +349,9 @@ fn test_pbeq_predicate(){
 #[test]
 fn test_always_pbeq_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
-    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
+    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "c".to_string();
     let d = "d".to_string();
@@ -366,7 +379,7 @@ fn test_always_pbeq_predicate(){
 #[test]
 fn test_next_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
 
     let cfg = ConfigZ3::new();
@@ -382,7 +395,7 @@ fn test_next_predicate(){
 #[test]
 fn test_after_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "c".to_string();
 
@@ -398,7 +411,7 @@ fn test_after_predicate(){
 // #[test]
 // fn test_safter_predicate(){
 
-//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
 //     let b = "b".to_string();
 //     let c = "c".to_string();
 
@@ -414,7 +427,7 @@ fn test_after_predicate(){
 // #[test]
 // fn test_eventually_safter_predicate(){
 
-//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
 //     let b = "b".to_string();
 //     let c = "c".to_string();
 
@@ -431,8 +444,8 @@ fn test_after_predicate(){
 #[test]
 fn test_always_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "c".to_string();
 
@@ -447,8 +460,8 @@ fn test_always_predicate(){
 #[test]
 fn test_always_after_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "c".to_string();
 
@@ -466,8 +479,8 @@ fn test_always_after_predicate(){
 #[test]
 fn test_eventually_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "c".to_string();
 
@@ -482,8 +495,8 @@ fn test_eventually_predicate(){
 #[test]
 fn test_eventually_after_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "c".to_string();
 
@@ -507,7 +520,7 @@ fn test_eventually_after_predicate(){
 #[test]
 fn test_trace_pbeq_predicate(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
 
     let cfg = ConfigZ3::new();

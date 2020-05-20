@@ -126,7 +126,7 @@ impl <'ctx> ReleaseZ3<'ctx> {
 #[test]
 fn test_next_ltlf(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
 
     let cfg = ConfigZ3::new();
@@ -142,7 +142,7 @@ fn test_next_ltlf(){
 #[test]
 fn test_always_ltlf(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
 
     let cfg = ConfigZ3::new();
@@ -158,7 +158,7 @@ fn test_always_ltlf(){
 #[test]
 fn test_eventually_ltlf(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
 
     let cfg = ConfigZ3::new();
@@ -174,8 +174,8 @@ fn test_eventually_ltlf(){
 #[test]
 fn test_until_ltlf(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "b".to_string();
 
@@ -193,8 +193,8 @@ fn test_until_ltlf(){
 #[test]
 fn test_release_ltlf(){
 
-    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"));
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
     let c = "b".to_string();
 
