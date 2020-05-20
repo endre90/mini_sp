@@ -61,7 +61,7 @@ pub struct GetParamPlanningResultZ3<'ctx> {
 }
 
 impl GeneratePredicate {
-    pub fn new(params: &Vec<Parameter>, ppred: &ParamPredicate) -> Predicate {
+    pub fn new(params: &Vec<&Parameter>, ppred: &ParamPredicate) -> Predicate {
         let mut pred_vec = vec!();
         for pred in &ppred.preds {
             let pred_vars: Vec<EnumVariable> = GetPredicateVars::new(&pred);
@@ -78,7 +78,7 @@ impl GeneratePredicate {
 }
 
 impl GenerateTransitions {
-    pub fn new(params: &Vec<Parameter>, ptrans: &Vec<ParamTransition>) -> Vec<Transition> {
+    pub fn new(params: &Vec<&Parameter>, ptrans: &Vec<ParamTransition>) -> Vec<Transition> {
         let mut trans_vec = vec!();
         for pt in ptrans {
             let guard = GeneratePredicate::new(&params, &pt.guard);
@@ -102,11 +102,11 @@ impl ParamTransition {
 }
 
 impl ParamPlanningProblem {
-    pub fn new(name: &str, params: &Vec<Parameter>, init: &ParamPredicate, goal: &ParamPredicate, 
+    pub fn new(name: &str, params: &Vec<&Parameter>, init: &ParamPredicate, goal: &ParamPredicate, 
         trans: &Vec<ParamTransition>, ltl_specs: &Predicate, max_steps: &u32) -> ParamPlanningProblem {
         ParamPlanningProblem {
             name: name.to_string(),
-            params: params.clone(),
+            params: params.iter().map(|&x| x.clone()).collect(),
             init: init.clone(),
             goal: goal.clone(),
             trans: trans.clone(),
@@ -117,7 +117,7 @@ impl ParamPlanningProblem {
 }
 
 impl ParamIncremental {
-    pub fn new(prob: &ParamPlanningProblem, params: &Vec<Parameter>, level: &u32, concat: &u32) -> ParamPlanningResult {
+    pub fn new(prob: &ParamPlanningProblem, params: &Vec<&Parameter>, level: &u32, concat: &u32) -> ParamPlanningResult {
         let generated_init = GeneratePredicate::new(&params, &prob.init);
         let generated_goal = GeneratePredicate::new(&params, &prob.goal);
         let generated_trans = GenerateTransitions::new(&params, &prob.trans);
@@ -180,27 +180,27 @@ fn test_generate_predicate(){
 
     let pose_param = Parameter::new("pose", &false);
     let stat_param = Parameter::new("stat", &false);
-    let params = vec!(pose_param, stat_param);
+    let params = vec!(&pose_param, &stat_param);
     let gen1 = GeneratePredicate::new(&params, &pp1);
     assert_eq!("AND([])", &format!("{:?}", gen1));
 
     let pose_param = Parameter::new("pose", &true);
     let stat_param = Parameter::new("stat", &false);
-    let params = vec!(pose_param, stat_param);
+    let params = vec!(&pose_param, &stat_param);
     let gen2 = GeneratePredicate::new(&params, &pp1);
     assert_eq!("AND([EQRL(EnumVariable { name: \"act_pos\", type: \"pose\", domain: [\"buffer\", \"home\", \"table\"], param: Parameter { name: \"pose\", value: true } }, \"buffer\")])", 
         &format!("{:?}", gen2));
 
     let pose_param = Parameter::new("pose", &false);
     let stat_param = Parameter::new("stat", &true);
-    let params = vec!(pose_param, stat_param);
+    let params = vec!(&pose_param, &stat_param);
     let gen3 = GeneratePredicate::new(&params, &pp1);
     assert_eq!("AND([EQRL(EnumVariable { name: \"act_stat\", type: \"status\", domain: [\"active\", \"idle\"], param: Parameter { name: \"stat\", value: true } }, \"active\"), EQRL(EnumVariable { name: \"act_stat\", type: \"status\", domain: [\"active\", \"idle\"], param: Parameter { name: \"stat\", value: true } }, \"idle\")])", 
         &format!("{:?}", gen3));
 
     let pose_param = Parameter::new("pose", &true);
     let stat_param = Parameter::new("stat", &true);
-    let params = vec!(pose_param, stat_param);
+    let params = vec!(&pose_param, &stat_param);
     let gen4 = GeneratePredicate::new(&params, &pp1);
     assert_eq!("AND([EQRL(EnumVariable { name: \"act_pos\", type: \"pose\", domain: [\"buffer\", \"home\", \"table\"], param: Parameter { name: \"pose\", value: true } }, \"buffer\"), EQRL(EnumVariable { name: \"act_stat\", type: \"status\", domain: [\"active\", \"idle\"], param: Parameter { name: \"stat\", value: true } }, \"active\"), EQRL(EnumVariable { name: \"act_stat\", type: \"status\", domain: [\"active\", \"idle\"], param: Parameter { name: \"stat\", value: true } }, \"idle\")])", 
         &format!("{:?}", gen4));
@@ -603,7 +603,7 @@ fn test_paramincremental_1(){
     );
 
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
-    let params = vec!(pose_param, stat_param, cube_param);
+    let params = vec!(&pose_param, &stat_param, &cube_param);
 
     let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &specs, &max_steps);
     
