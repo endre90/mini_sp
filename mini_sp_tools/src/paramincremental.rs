@@ -222,7 +222,7 @@ fn test_paramincremental_1(){
     let gripper_domain = vec!("cube", "ball", "empty");
     let table_domain = vec!("cube", "ball", "empty");
 
-    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain, Some(&pose_param));
+    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain, None);
     let ref_pos = EnumVariable::new("ref_pos", "pose", &pose_domain, Some(&pose_param));
 
     let act_stat = EnumVariable::new("act_stat", "status", &stat_domain, Some(&stat_param));
@@ -603,7 +603,10 @@ fn test_paramincremental_1(){
     );
 
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
-    let params = vec!(&pose_param, &stat_param, &cube_param);
+
+    // Ugly hack, have to include it in the generation somehow
+    let default_param = Parameter::default();
+    let params = vec!(&pose_param, &stat_param, &cube_param, &default_param);
 
     let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &specs, &max_steps);
     
