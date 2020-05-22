@@ -62,12 +62,15 @@ pub struct GetParamPlanningResultZ3<'ctx> {
 
 impl GeneratePredicate {
     pub fn new(params: &Vec<&Parameter>, ppred: &ParamPredicate) -> Predicate {
+        let mut p_own = params.to_owned();
+        let default_param = Parameter::default();
+        p_own.push(&default_param);
         let mut pred_vec = vec!();
         for pred in &ppred.preds {
             let pred_vars: Vec<EnumVariable> = GetPredicateVars::new(&pred);
-            for param in params {
+            for param in &p_own {
                 if pred_vars.iter().any(|x| x.param.name == param.name) && param.value {
-                    pred_vec.push(pred.clone())
+                    pred_vec.push(pred.to_owned())
                 }
             }
         }
@@ -95,8 +98,8 @@ impl ParamTransition {
     pub fn new(name: &str, guard: &ParamPredicate, update: &ParamPredicate) -> ParamTransition {
         ParamTransition {
             name: name.to_string(),
-            guard: guard.clone(),
-            update: update.clone()
+            guard: guard.to_owned(),
+            update: update.to_owned()
         }
     }
 }
@@ -107,11 +110,11 @@ impl ParamPlanningProblem {
         ParamPlanningProblem {
             name: name.to_string(),
             params: params.iter().map(|&x| x.clone()).collect(),
-            init: init.clone(),
-            goal: goal.clone(),
-            trans: trans.clone(),
-            ltl_specs: ltl_specs.clone(),
-            max_steps: max_steps.clone()
+            init: init.to_owned(),
+            goal: goal.to_owned(),
+            trans: trans.to_owned(),
+            ltl_specs: ltl_specs.to_owned(),
+            max_steps: max_steps.to_owned()
         }
     }
 }
@@ -213,7 +216,7 @@ fn test_paramincremental_1(){
     let max_steps: u32 = 30;
 
     let pose_param = Parameter::new("pose", &true);
-    let stat_param = Parameter::new("stat", &true);
+    let stat_param = Parameter::new("stat", &false);
     let cube_param = Parameter::new("cube", &true);
 
     let pose_domain = vec!("buffer", "home", "table");
@@ -604,9 +607,8 @@ fn test_paramincremental_1(){
 
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 
-    // Ugly hack, have to include it in the generation somehow
-    let default_param = Parameter::default();
-    let params = vec!(&pose_param, &stat_param, &cube_param, &default_param);
+
+    let params = vec!(&pose_param, &stat_param, &cube_param);
 
     let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &specs, &max_steps);
     
@@ -623,6 +625,7 @@ fn test_paramincremental_1(){
     for t in &result.trace{
  
         println!("state: {:?}", t.state);
+        println!("ppred: {:?}", StateToParamPredicate::new(&t.state.iter().map(|x| x.as_str()).collect(), &problem));
         println!("trans: {:?}", t.trans);
         println!("=========================");
     }

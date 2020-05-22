@@ -26,6 +26,20 @@ pub struct EnumVariable {
     pub param: Parameter
 }
 
+#[derive(Eq, Debug, PartialEq, Clone, PartialOrd, Ord)]
+pub struct EnumAssignment {
+    pub var: EnumVariable,
+    pub val: String
+}
+
+// for now, later have to figure out how to add bool and int
+#[derive(Eq, Debug, PartialEq, Clone, PartialOrd, Ord)]
+pub struct State {
+    pub variables: Vec<EnumVariable>,
+    pub asssignments: Vec<EnumAssignment>,
+    pub partial: bool
+}
+
 impl Parameter {
     pub fn new(name: &str, value: &bool) -> Parameter {
         match name == "TRUE" {
@@ -54,7 +68,7 @@ impl BoolVariable {
     pub fn new(name: &str, param: Option<&Parameter>) -> BoolVariable {
         BoolVariable { 
             param: match param {
-                Some(x) => x.clone(),
+                Some(x) => x.to_owned(),
                 None => Parameter::default()
             },
             name: name.to_string(), 
@@ -66,7 +80,7 @@ impl IntVariable {
     pub fn new(name: &str, domain: &Vec<&i32>, param: Option<&Parameter>) -> IntVariable {
         IntVariable { 
             param: match param {
-                Some(x) => x.clone(),
+                Some(x) => x.to_owned(),
                 None => Parameter::default()
             },
             name: name.to_string(), 
@@ -79,12 +93,26 @@ impl EnumVariable{
     pub fn new(name: &str, r#type: &str, domain: &Vec<&str>, param: Option<&Parameter>) -> EnumVariable {
         EnumVariable { 
             param: match param {
-                Some(x) => x.clone(),
+                Some(x) => x.to_owned(),
                 None => Parameter::default()
             },
-            name: name.to_string(),
+            name: match name == "EMPTY" {
+                true => panic!("Error 69e2abf9-498b-4d5c-88c7-30ea70ed27fb: EnumVariable name 'EMPTY' is reserved."),
+                false => name.to_string()
+            },
             r#type: r#type.to_string(),
             domain: domain.iter().map(|x| x.to_string()).collect::<Vec<String>>()
+        }
+    }
+}
+
+impl Default for EnumVariable {
+    fn default() -> Self {
+        EnumVariable {
+            param: Parameter::default(),
+            name: "EMPTY".to_string(),
+            r#type: "EMPTY".to_string(),
+            domain: vec!()
         }
     }
 }

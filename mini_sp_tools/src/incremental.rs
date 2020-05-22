@@ -36,6 +36,13 @@ pub struct PlanningFrame {
     pub trans: String,
 }
 
+// maybe implement in the future when all works
+// #[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
+// pub struct PlanningFrame {
+//     pub state: State,
+//     pub trans: Transition,
+// }
+
 pub struct GetPlanningResultZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub model: Z3_model,
@@ -54,8 +61,8 @@ pub struct PlanningResult {
 impl Transition {
     pub fn new(name: &str, guard: &Predicate, update: &Predicate) -> Transition {
         Transition { name: name.to_string(),
-                     guard: guard.clone(),
-                     update: update.clone() }
+                     guard: guard.to_owned(),
+                     update: update.to_owned() }
     }
 }
 
@@ -64,11 +71,11 @@ impl PlanningProblem {
         ltl_specs: &Predicate, max_steps: &u32) -> PlanningProblem {
         PlanningProblem {
             name: name.to_string(),
-            init: init.clone(),
-            goal: goal.clone(),
-            trans: trans.clone(),
-            ltl_specs: ltl_specs.clone(),
-            max_steps: max_steps.clone()
+            init: init.to_owned(),
+            goal: goal.to_owned(),
+            trans: trans.to_owned(),
+            ltl_specs: ltl_specs.to_owned(),
+            max_steps: max_steps.to_owned()
         }
     }
 }
@@ -142,11 +149,11 @@ impl Incremental {
 
         let planning_time = now.elapsed();
 
-        let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
-        let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
-        for asrt in asrtvec {
-            println!("{}", AstToStringZ3::new(&ctx, asrt));
-        }
+        // let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
+        // let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
+        // for asrt in asrtvec {
+        //     println!("{}", AstToStringZ3::new(&ctx, asrt));
+        // }
         // let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
         
         if plan_found == true {
@@ -161,8 +168,17 @@ impl Incremental {
     }   
 }
 
+// impl PlanningFrame {
+//     pub fn new(state: Vec<&str>, trans: &str) -> PlanningFrame {
+//         PlanningFrame {
+//             state: state.iter().map(|x| x.to_string()).collect(),
+//             trans: trans.to_string()
+//         }
+//     }
+// }
+
 impl PlanningFrame {
-    pub fn new(state: Vec<&str>, trans: &str) -> PlanningFrame {
+    pub fn new(state: &Vec<&str>, trans: &str) -> PlanningFrame {
         PlanningFrame {
             state: state.iter().map(|x| x.to_string()).collect(),
             trans: trans.to_string()
@@ -190,7 +206,7 @@ impl <'ctx> GetPlanningResultZ3<'ctx> {
         let mut trace: Vec<PlanningFrame> = vec!();
         
         for i in 0..nr_steps {
-            let mut frame: PlanningFrame = PlanningFrame::new(vec!(), "");
+            let mut frame: PlanningFrame = PlanningFrame::new(&vec!(), "");
             for j in &model_vec {
                 let sep: Vec<&str> = j.split(" -> ").collect();
                 if sep[0].ends_with(&format!("_s{}", i)){

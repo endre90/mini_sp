@@ -1,10 +1,7 @@
 //! # mini sp tools
 
 pub mod basics;
-pub use crate::basics::{Parameter, EnumVariable};
-
-// pub mod parambasics;
-// pub use crate::parambasics::{Parameter, ParamEnumVariable};
+pub use crate::basics::{Parameter, EnumVariable, EnumAssignment, State};
 
 pub mod ltlf;
 pub use crate::ltlf::{NextZ3, AlwaysZ3, EventuallyZ3, UntilZ3, ReleaseZ3}; //WeakNextZ3, 
@@ -21,11 +18,11 @@ pub use crate::paramincremental::{ParamTransition, ParamPlanningProblem, ParamIn
     ParamPlanningResult};
 
 pub mod compositional;
-pub use crate::compositional::{Activate};
+pub use crate::compositional::{Activate, StateToParamPredicate};
 
 pub mod predicates;
 pub use crate::predicates::{Predicate, ParamPredicate, PredicateToAstZ3};
 
 pub mod utils;
-pub use crate::utils::{IterOps, GetPredicateVars, GetProblemVars};
-
+pub use crate::utils::{IterOps, GetPredicateVars, GetProblemVars, GetParamPredicateVars,
+    GetParamProblemVars};

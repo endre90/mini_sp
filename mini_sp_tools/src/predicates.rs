@@ -44,7 +44,7 @@ pub struct PredicateToAstZ3<'ctx> {
 impl ParamPredicate {
     pub fn new(preds: &Vec<&Predicate>) -> ParamPredicate {
         ParamPredicate {
-            preds: preds.iter().map(|&x| x.clone()).collect()
+            preds: preds.iter().map(|&x| x.to_owned()).collect()
         }
     }
 }
