@@ -81,8 +81,19 @@ impl Concatenate {
                     trace: {
                         let mut conc_plan_trace: Vec<PlanningFrame> = vec!();
                         for res in results {
-                            conc_plan_trace.extend(res.trace.to_owned());
-                        }
+                            if results.iter().position(|x| x == res).unwrap() == 0 {
+                                for tr in res.trace.clone() {
+                                    conc_plan_trace.push(tr)
+                                }
+                            } else {
+                                for tr in res.trace.clone() {
+                                    if res.trace.iter().position(|x| *x == tr).unwrap() != 0 {
+
+                                        conc_plan_trace.push(tr)
+                                    }
+                                }
+                            }
+                        };
                         conc_plan_trace
                     },
                     time_to_solve: results.iter().map(|x| x.time_to_solve).sum()
@@ -125,12 +136,14 @@ impl RemoveLoops {
         duplicates.sort();
         duplicates.dedup();
 
-        let mut fixed: Vec<PlanningFrame> = vec!();
+        println!("DUPLICATES: {:?}", duplicates);
+
+        // let mut fixed: Vec<PlanningFrame> = vec!();
 
         while duplicates.len() != 0 {
             println!("DUPLICATES: {:?}\n", duplicates);
             if duplicates[0].1 != 123456789 {
-                fixed = sorted_trace.drain(duplicates[0].1 + 1..duplicates[0].2 + 1).collect();
+                // fixed = sorted_trace.drain(duplicates[0].1 + 1..duplicates[0].2 + 1).collect();
                 duplicates.remove(0);
                 if duplicates.len() != 0 {
                     duplicates[0].1 = match sorted_trace.iter().position(|x| x.state == duplicates[0].0.state) {
@@ -162,30 +175,34 @@ impl RemoveLoops {
             plan_length: sorted_trace.len() as u32 - 1,
             level: result.level,
             concat: result.concat,
-            // trace: sorted_trace,
-            trace: fixed,
+            // trace: match fixed.len() == 0 {
+            //     true => sorted_trace,
+            //     false => fixed
+            // },
+            trace: sorted_trace,
+            // trace: fixed,
             time_to_solve: result.time_to_solve
         }        
     }
 }
 
 impl Compositional {
-    pub fn new(prob: &ParamPlanningProblem, params: &Vec<&Parameter>, level: &u32) -> ParamPlanningResult {
-        let return_result = match params.iter().all(|x| !x.value) {
+    pub fn new(prob: &ParamPlanningProblem, params: &Vec<&Parameter>) -> () {
+        match params.iter().all(|x| !x.value) {
             true => {
                 let first_params = Activate::new(params);
-                let first_result = ParamIncremental::new(&prob, &first_params.iter().map(|x| x).collect(), &level, &0);
-                recursive_subfn(&first_result, &prob, &params, &level)
+                let first_result = ParamIncremental::new(&prob, &first_params.iter().map(|x| x).collect(), &0, &0);
+                recursive_subfn(&first_result, &prob, &params, &0);
             },
             false => {
-                let first_result = ParamIncremental::new(&prob, &params.iter().map(|&x| x).collect(), &level, &0);
-                recursive_subfn(&first_result, &prob, &params, &level)
+                let first_result = ParamIncremental::new(&prob, &params.iter().map(|&x| x).collect(), &0, &0);
+                recursive_subfn(&first_result, &prob, &params, &0);
             }
         };
 
         fn recursive_subfn(result: &ParamPlanningResult, prob: &ParamPlanningProblem, params: &Vec<&Parameter>, level: &u32) -> ParamPlanningResult {
             let level = level + 1;
-            let mut final_result: ParamPlanningResult = result.to_owned();
+            let final_result: ParamPlanningResult = result.to_owned();
             if !params.iter().all(|x| x.value) {
                 if result.plan_found {
                     let mut inheritance: Vec<String> = vec!() ;
@@ -193,6 +210,8 @@ impl Compositional {
                     let activated_params = Activate::new(&params);
                     let mut concat: u32 = 0;
                     if result.plan_length != 0 {
+                        println!("{:?}", result.plan_length);
+                        println!("{:?}", result.trace.len());
                         for i in 0..=result.trace.len() - 1 {
                             if i == 0 {
                                 let next_prob = ParamPlanningProblem::new(
@@ -215,179 +234,95 @@ impl Compositional {
                                     panic!("NO PLAN FOUND 1 !")
                                 }
                                 concat = concat + 1;                       
+                            } else if i == result.trace.len() - 1 {
+                                let next_prob = ParamPlanningProblem::new(
+                                    &format!("problem_l{:?}_c{:?}", level, concat),
+                                    params,
+                                    &StateToParamPredicate::new(&inheritance.iter().map(|x| x.as_str()).collect(), &prob),
+                                    &prob.goal,
+                                    &prob.trans,
+                                    &prob.ltl_specs,
+                                    &prob.max_steps
+                                );
+                                let next_result = ParamIncremental::new(&next_prob, &activated_params.iter().map(|x| x).collect(), &level, &concat);
+                                
+                                if next_result.plan_found {
+                                    level_subresults.push(next_result.clone());
+                                } else {
+                                    panic!("NO PLAN FOUND 2 !")
+                                }
+                                concat = concat + 1;
+                            } else {
+                                let next_prob = ParamPlanningProblem::new(
+                                    &format!("problem_l{:?}_c{:?}", level, concat),
+                                    params,
+                                    &StateToParamPredicate::new(&inheritance.iter().map(|x| x.as_str()).collect(), &prob),
+                                    &StateToParamPredicate::new(&result.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &prob),
+                                    &prob.trans,
+                                    &prob.ltl_specs,
+                                    &prob.max_steps
+                                );
+                                let next_result = ParamIncremental::new(&next_prob, &activated_params.iter().map(|x| x).collect(), &level, &concat);
+                                if next_result.plan_found {
+                                    level_subresults.push(next_result.to_owned());
+                                    match next_result.trace.last() {
+                                        Some(x) => inheritance = x.state.clone(),
+                                        None => panic!("No tail in the plan! 1")
+                                    }
+                                } else {
+                                    panic!("NO PLAN FOUND 3 !")
+                                }
+                                concat = concat + 1;   
                             }
+                        } 
+                    } else {
+                        let activated_params = Activate::new(&params);
+                        let next_prob = ParamPlanningProblem::new(
+                            &format!("problem_l{:?}_c{:?}", level, concat),
+                            params,
+                            // &prob.init,
+                            // &prob.goal,
+                            &StateToParamPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &prob),
+                            &StateToParamPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &prob),
+                            &prob.trans,
+                            &prob.ltl_specs,
+                            &prob.max_steps
+                        );
+                        let next_result = ParamIncremental::new(&next_prob, &activated_params.iter().map(|x| x).collect(), &level, &concat);
+                        if next_result.plan_found {
+                            level_subresults.push(next_result.to_owned());
+                            match next_result.trace.last() {
+                                Some(x) => inheritance = x.state.clone(),
+                                None => panic!("No tail in the plan! 3")
+                            }
+                        } else {
+                            panic!("NO PLAN FOUND 4 !")
                         }
+                        concat = concat + 1;   
                     }
                     let level_result = Concatenate::new(&level_subresults.iter().map(|x| x).collect());
+                    for t in &level_result.trace{
+ 
+                        println!("only_concat: {:?}", t.state);
+                        println!("only_concat: {:?}", t.trans);
+                        println!("=========================");
+                    }
                     let delooped_and_sorted = RemoveLoops::new(&final_result);
-                    let final_level_result = recursive_subfn(&delooped_and_sorted, &prob, &activated_params.iter().map(|x| x).collect(), &level);
+
+                    for t in &delooped_and_sorted.trace{
+ 
+                        println!("dllpds: {:?}", t.state);
+                        println!("dllpds: {:?}", t.trans);
+                        println!("=========================");
+                    }
+                    recursive_subfn(&delooped_and_sorted, &prob, &activated_params.iter().map(|x| x).collect(), &level);
                 }
             }
             final_result
         }
-        return_result
     }
 }
-    //     pub fn new(result: &ParamPlanningResult,
-    //                problem: &ParamPlanningProblemNew,
-    //                params: &Vec<(String, bool)>, 
-    //                order: &Vec<&str>, 
-    //                all_results: &Vec<ParamPlanningResult>,
-    //                level: u32) -> ParamPlanningResult {
-        
-    //         let all_results: Vec<ParamPlanningResult> = vec!();
-    //         let mut final_result: ParamPlanningResult = result.clone();
-    
-    //         let current_level = level + 1;
-    //         if !params.iter().all(|x| x.1) {
-                
-    //             if result.plan_found {
-    //                 let mut inheritance: Vec<String> = vec!() ;
-    //                 let mut level_results = vec!();
-    //                 let activated_params = &ActivateNextParam::new(&params, &order);
-    //                 let mut concat = 0;
-    //                 if result.plan_length != 0 {
-    //                     for i in 0..=result.trace.len() - 1 {
-    //                         if i == 0 {
-    //                             // println!("DDDDDDDDDDDDDDDDDDDDD i == 0");
-    //                             let new_problem = ParamPlanningProblemNew::new(
-    //                                 format!("problem_l{:?}_c{:?}", current_level, concat), 
-    //                                 problem.vars.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 activated_params.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 problem.initial.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 ParamStateToPredicateNew::new(&result.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 problem.trans.clone(),
-    //                                 problem.ltl_specs.clone(),
-    //                                 problem.max_steps);
-    //                             let new_result = ParamSequentialNew::new(&new_problem, &activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(), current_level, concat);
-                                
-    //                             if new_result.plan_found {
-    //                                 level_results.push(new_result.clone());
-    //                                 match new_result.trace.last() {
-    //                                     Some(x) => inheritance = x.state.clone(),
-    //                                     None => panic!("No tail in the plan! 1")
-    //                                 }
-    //                             } else {
-    //                                 panic!("NO PLAN FOUND 1 !")
-    //                             }
-    
-    //                             concat = concat + 1;                         
-    //                         } else if i == result.trace.len() - 1 {
-    //                             // println!("DDDDDDDDDDDDDDDDDDDDD i == result.trace.len() - 1");
-    //                             let new_problem = ParamPlanningProblemNew::new(
-    //                                 format!("problem_l{:?}_c{:?}", current_level, concat), 
-    //                                 problem.vars.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
-    //                                 ParamStateToPredicateNew::new(&inheritance.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 problem.goal.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 problem.trans.clone(),
-    //                                 problem.ltl_specs.clone(),
-    //                                 problem.max_steps);
-    //                             let new_result = ParamSequentialNew::new(&new_problem, &activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(), current_level, concat);
-                                
-    //                             if new_result.plan_found {
-    //                                 level_results.push(new_result.clone());
-    //                             } else {
-    //                                 panic!("NO PLAN FOUND 2 !")
-    //                             }
-    //                             concat = concat + 1;
-    //                         } else {
-    //                             // println!("DDDDDDDDDDDDDDDDDDDDD i == else");
-    //                             let new_problem = ParamPlanningProblemNew::new(
-    //                                 format!("problem_l{:?}_c{:?}", current_level, concat), 
-    //                                 problem.vars.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
-    //                                 ParamStateToPredicateNew::new(&inheritance.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 ParamStateToPredicateNew::new(&result.trace[i + 1].state.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                                 problem.trans.clone(),
-    //                                 problem.ltl_specs.clone(),
-    //                                 problem.max_steps);
-    //                             let new_result = ParamSequentialNew::new(&new_problem, &activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(), current_level, concat);
-    
-    //                             if new_result.plan_found {
-    //                                 level_results.push(new_result.clone());
-    
-    //                                 println!("problem_nlevel: {:?}", new_result.level);
-    //                                 println!("problem_nconcat: {:?}", new_result.concat);
-    //                                 println!("problem_nplan_found: {:?}", new_result.plan_found);
-    //                                 println!("problem_nplan_lenght: {:?}", new_result.plan_length);
-    //                                 println!("problem_ntime_to_solve: {:?}", new_result.time_to_solve);
-    //                                 println!("problem_ntrace: ");
-    
-    //                                 for t in &new_result.trace{
-                                    
-    //                                     println!("state: {:?}", t.state);
-    //                                     println!("trans: {:?}", t.trans);
-    //                                     println!("=========================");
-    //                                 }
-    
-    //                                 match new_result.trace.last() {
-    //                                     Some(x) => inheritance = x.state.clone(),
-    //                                     None => panic!("No tail in the plan! 2")
-    //                                 }
-    //                             } else {
-    //                                 panic!("NO PLAN FOUND 3 !")
-    //                             }
-    //                             concat = concat + 1;   
-    //                         }
-    //                     }
-    //                 } else {
-    
-    //                     // have to handle this case somehow this is one of the bottlenecks
-    //                     // println!("DDDDDDDDDDDDDDDDDDDDD lenght == 0");
-    //                     let activated_params = &ActivateNextParam::new(&params, &order);
-    //                     let new_problem = ParamPlanningProblemNew::new(
-    //                         String::from("some"), 
-    //                         problem.vars.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                         activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(),
-    //                         problem.initial.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                         problem.goal.iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                         // ParamStateToPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                         // ParamStateToPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &problem).iter().map(|x| (x.0.as_str(), x.1.clone())).collect(),
-    //                         problem.trans.clone(),
-    //                         problem.ltl_specs.clone(),
-    //                         problem.max_steps);
-    //                     let new_result = ParamSequentialNew::new(&new_problem, &activated_params.iter().map(|x| (x.0.as_str(), x.1)).collect(), current_level, concat);
-    //                     if new_result.plan_found {
-    //                         level_results.push(new_result.clone());
-    //                         match new_result.trace.last() {
-    //                             Some(x) => inheritance = x.state.clone(),
-    //                             None => panic!("No tail in the plan! 3")
-    //                         }
-    //                     } else {
-    //                         panic!("NO PLAN FOUND 4 !")
-    //                     }
-    //                         concat = concat + 1;   
-    //                 }
-    
-    //                 final_result = Concatenate::new(&level_results);
-    //                 let delooped_and_sorted = RemoveLoops::new(&final_result);
-                    
-    
-    //                 println!("inlevel: {:?}", delooped_and_sorted.level);
-    //                 println!("inconcat: {:?}", delooped_and_sorted.concat);
-    //                 println!("inplan_found: {:?}", delooped_and_sorted.plan_found);
-    //                 println!("inplan_lenght: {:?}", delooped_and_sorted.plan_length);
-    //                 println!("intime_to_solve: {:?}", delooped_and_sorted.time_to_solve);
-    //                 println!("intrace: ");
-                
-    //                 for t in &delooped_and_sorted.trace{
-                    
-    //                     println!("state: {:?}", t.state);
-    //                     println!("trans: {:?}", t.trans);
-    //                     println!("=========================");
-    //                 }
-                
-                    
-    
-    //                 final_result = Compositional3::new(&delooped_and_sorted, &problem, &activated_params, &order, &all_results, current_level);   
-    //             }
-    //         }
-    //         final_result
-    //     }
-    // }
-
-
+  
 #[test]
 fn test_activate() {
     let param_a = Parameter::new("a", &true);
@@ -407,4 +342,425 @@ fn test_activate_panic() {
     let param_c = Parameter::new("c", &true);
     let params = vec!(&param_a, &param_b, &param_c);
     Activate::new(&params);
+}
+
+#[test]
+fn test_compositional_1(){
+
+    let max_steps: u32 = 30;
+
+    let pose_param = Parameter::new("pose", &false);
+    let stat_param = Parameter::new("stat", &false);
+    let cube_param = Parameter::new("cube", &false);
+
+    let pose_domain = vec!("buffer", "home", "table");
+    let stat_domain = vec!("active", "idle");
+    let buffer_domain = vec!("cube", "ball", "empty");
+    let gripper_domain = vec!("cube", "ball", "empty");
+    let table_domain = vec!("cube", "ball", "empty");
+
+    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain, None);
+    let ref_pos = EnumVariable::new("ref_pos", "pose", &pose_domain, Some(&pose_param));
+
+    let act_stat = EnumVariable::new("act_stat", "status", &stat_domain, Some(&stat_param));
+    let ref_stat = EnumVariable::new("ref_stat", "status", &stat_domain, Some(&stat_param));
+
+    let buffer = EnumVariable::new("buffer_cube", "buffer", &buffer_domain, Some(&cube_param));
+    let gripper = EnumVariable::new("gripper_cube", "gripper", &gripper_domain, Some(&cube_param));
+    let table = EnumVariable::new("table_cube", "table", &table_domain, Some(&cube_param));
+
+    // act stat predicates
+    let stat_active = Predicate::EQRL(act_stat.clone(), String::from("active"));
+    let stat_idle = Predicate::EQRL(act_stat.clone(), String::from("idle"));
+    let not_stat_active = Predicate::NOT(Box::new(stat_active.clone()));
+    let not_stat_idle = Predicate::NOT(Box::new(stat_idle.clone()));
+
+    // ref stat predicates
+    let set_stat_active = Predicate::EQRL(ref_stat.clone(), String::from("active"));
+    let set_stat_idle = Predicate::EQRL(ref_stat.clone(), String::from("idle"));
+    let not_set_stat_active = Predicate::NOT(Box::new(set_stat_active.clone()));
+    let not_set_stat_idle = Predicate::NOT(Box::new(set_stat_idle.clone()));
+
+    // act pos predicates
+    let pos_buffer = Predicate::EQRL(act_pos.clone(), String::from("buffer"));
+    let pos_table = Predicate::EQRL(act_pos.clone(), String::from("table"));
+    let pos_home = Predicate::EQRL(act_pos.clone(), String::from("home"));
+    let not_pos_buffer = Predicate::NOT(Box::new(pos_buffer.clone()));
+    let not_pos_table = Predicate::NOT(Box::new(pos_table.clone()));
+    let not_pos_home = Predicate::NOT(Box::new(pos_home.clone()));
+
+    // ref pos predicates
+    let set_pos_buffer = Predicate::EQRL(ref_pos.clone(), String::from("buffer"));
+    let set_pos_table = Predicate::EQRL(ref_pos.clone(), String::from("table"));
+    let set_pos_home = Predicate::EQRL(ref_pos.clone(), String::from("home"));
+    let not_set_pos_buffer = Predicate::NOT(Box::new(set_pos_buffer.clone()));
+    let not_set_pos_table = Predicate::NOT(Box::new(set_pos_table.clone()));
+    let not_set_pos_home = Predicate::NOT(Box::new(set_pos_home.clone()));
+
+    // act buffer predicates
+    let buffer_cube = Predicate::EQRL(buffer.clone(), String::from("cube"));
+    let buffer_ball = Predicate::EQRL(buffer.clone(), String::from("ball"));
+    let buffer_empty = Predicate::EQRL(buffer.clone(), String::from("empty"));
+    let not_buffer_cube = Predicate::NOT(Box::new(buffer_cube.clone()));
+    let not_buffer_ball = Predicate::NOT(Box::new(buffer_ball.clone()));
+    let not_buffer_empty = Predicate::NOT(Box::new(buffer_empty.clone()));
+    
+    // act gripper predicates
+    let gripper_cube = Predicate::EQRL(gripper.clone(), String::from("cube"));
+    let gripper_ball = Predicate::EQRL(gripper.clone(), String::from("ball"));
+    let gripper_empty = Predicate::EQRL(gripper.clone(), String::from("empty"));
+    let not_gripper_cube = Predicate::NOT(Box::new(gripper_cube.clone()));
+    let not_gripper_ball = Predicate::NOT(Box::new(gripper_ball.clone()));
+    let not_gripper_empty = Predicate::NOT(Box::new(gripper_empty.clone()));
+
+    // act table predicates
+    let table_cube = Predicate::EQRL(table.clone(), String::from("cube"));
+    let table_ball = Predicate::EQRL(table.clone(), String::from("ball"));
+    let table_empty = Predicate::EQRL(table.clone(), String::from("empty"));
+    let not_table_cube = Predicate::NOT(Box::new(table_cube.clone()));
+    let not_table_ball = Predicate::NOT(Box::new(table_ball.clone()));
+    let not_table_empty = Predicate::NOT(Box::new(table_empty.clone()));
+
+    // are ref == act predicates
+    let pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
+    let stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
+    let not_pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
+    let not_stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
+
+    let t1 = ParamTransition::new(
+        "start_activate",
+        &ParamPredicate::new(
+            &vec!(
+                &not_stat_active,
+                &not_set_stat_active
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &set_stat_active
+            )
+        )
+    );
+
+    let t2 = ParamTransition::new(
+        "finish_activate",
+        &ParamPredicate::new(
+            &vec!(
+                &set_stat_active,
+                &not_stat_active
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &stat_active
+            )
+        )
+    );
+
+    let t3 = ParamTransition::new(
+        "start_deactivate",
+        &ParamPredicate::new(
+            &vec!(
+                &not_stat_idle,
+                &not_set_stat_idle
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &set_stat_idle
+            )
+        )
+    );
+
+    let t4 = ParamTransition::new(
+        "finish_deactivate",
+        &ParamPredicate::new(
+            &vec!(
+                &not_stat_idle,
+                &set_stat_idle
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &stat_idle
+            )
+        )
+    );
+    
+    let t5 = ParamTransition::new(
+        "start_move_to_buffer",
+        &ParamPredicate::new(
+            &vec!(
+                &stat_active,
+                &set_stat_active,
+                &pos_stable,
+                &not_pos_buffer,
+                &not_set_pos_buffer
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &set_pos_buffer
+            )
+        )
+    );
+
+    let t6 = ParamTransition::new(
+        "finish_move_to_buffer",
+        &ParamPredicate::new(
+            &vec!(
+                &stat_active,
+                &set_stat_active,
+                &not_pos_buffer,
+                &set_pos_buffer
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &pos_buffer
+            )
+        )
+    );
+
+    let t7 = ParamTransition::new(
+        "start_move_to_table",
+        &ParamPredicate::new(
+            &vec!(
+                &stat_active,
+                &set_stat_active,
+                &pos_stable,
+                &not_pos_table,
+                &not_set_pos_table
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &set_pos_table
+            )
+        )
+    );
+
+    let t8 = ParamTransition::new(
+        "finish_move_to_table",
+        &ParamPredicate::new(
+            &vec!(
+                &stat_active,
+                &set_stat_active,
+                &not_pos_table,
+                &set_pos_table
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &pos_table
+            )
+        )
+    );
+
+    let t9 = ParamTransition::new(
+        "start_move_to_home",
+        &ParamPredicate::new(
+            &vec!(
+                &stat_active,
+                &set_stat_active,
+                &pos_stable,
+                &not_pos_home,
+                &not_set_pos_home
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &set_pos_home
+            )
+        )
+    );
+
+    let t10 = ParamTransition::new(
+        "finish_move_to_home",
+        &ParamPredicate::new(
+            &vec!(
+                &stat_active,
+                &set_stat_active,
+                &not_pos_home,
+                &set_pos_home
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &pos_home
+            )
+        )
+    );
+
+    let t11 = ParamTransition::new(
+        "take_cube_from_buffer",
+        &ParamPredicate::new(
+            &vec!(
+                &buffer_cube,
+                &stat_active,
+                &set_stat_active,
+                &pos_buffer,
+                &set_pos_buffer
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &gripper_cube,
+                &buffer_empty,
+                &table_empty
+            )
+        )
+    );
+
+    let t12 = ParamTransition::new(
+        "take_cube_from_table",
+        &ParamPredicate::new(
+            &vec!(
+                &table_cube,
+                &stat_active,
+                &set_stat_active,
+                &pos_table,
+                &set_pos_table
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &gripper_cube,
+                &buffer_empty,
+                &table_empty
+            )
+        )
+    );
+
+    let t13 = ParamTransition::new(
+        "leave_cube_at_buffer",
+        &ParamPredicate::new(
+            &vec!(
+                &gripper_cube,
+                &stat_active,
+                &set_stat_active,
+                &pos_buffer,
+                &set_pos_buffer
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &gripper_empty,
+                &buffer_cube,
+                &table_empty
+            )
+        )
+    );
+
+    let t14 = ParamTransition::new(
+        "leave_cube_at_table",
+        &ParamPredicate::new(
+            &vec!(
+                &gripper_cube,
+                &stat_active,
+                &set_stat_active,
+                &pos_table,
+                &set_pos_table
+            )
+        ),
+        &ParamPredicate::new(
+            &vec!(
+                &gripper_empty,
+                &buffer_empty,
+                &table_cube
+            )
+        )
+    );
+
+    let s1 = Predicate::ALWAYS(
+        Box::new(
+            Predicate::PBEQ(
+                vec!(
+                    gripper_cube.clone(),
+                    table_cube.clone(),
+                    buffer_cube.clone()
+                ),
+                1
+            )
+        )
+    );
+
+    let s2 = Predicate::ALWAYS(
+        Box::new(
+            Predicate::AND(
+                vec!(
+                    Predicate::NOT(Box::new(gripper_ball.clone())),
+                    Predicate::NOT(Box::new(table_ball.clone())),
+                    Predicate::NOT(Box::new(buffer_ball.clone())),
+                )
+            )
+        )
+    );
+
+    let s3 = Predicate::NEVER(
+        Box::new(
+            Predicate::AFTER(
+                Box::new(pos_table.clone()),
+                Box::new(pos_buffer.clone())
+            )
+        )
+    );
+
+    let s4 = Predicate::NEVER(
+        Box::new(
+            Predicate::AFTER(
+                Box::new(pos_buffer.clone()),
+                Box::new(pos_table.clone())
+            )
+        )
+    );
+
+    let init = ParamPredicate::new(
+        &vec!(
+            &stat_stable,
+            &stat_idle,
+            &pos_stable,
+            &pos_buffer,
+            &table_cube
+        )
+    );
+    
+    let goal = ParamPredicate::new(
+        &vec!(
+            &stat_idle,
+            &pos_table,
+            &buffer_cube
+        )
+    );
+
+    let specs = Predicate::AND(
+        vec!(
+            s1, s2, s3, s4
+        )
+    );
+
+    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
+
+
+    let params = vec!(&pose_param, &stat_param, &cube_param);
+
+    let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &specs, &max_steps);
+    
+    let level: u32 = 0;
+    let concat: u32 = 0;
+
+    let result = Compositional::new(&problem, &params);
+
+    // println!("plan_found: {:?}", result.plan_found);
+    // println!("plan_lenght: {:?}", result.plan_length);
+    // println!("time_to_solve: {:?}", result.time_to_solve);
+    // println!("trace: ");
+
+    // for t in &result.trace{
+ 
+    //     println!("state: {:?}", t.state);
+    //     // println!("ppred: {:?}", StateToParamPredicate::new(&t.state.iter().map(|x| x.as_str()).collect(), &problem));
+    //     println!("trans: {:?}", t.trans);
+    //     println!("=========================");
+    // }
 }
