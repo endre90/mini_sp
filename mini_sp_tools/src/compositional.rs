@@ -1,6 +1,3 @@
-use std::time::{Duration, Instant};
-use z3_sys::*;
-use mini_sp_smt::*;
 use super::*;
 
 pub struct Activate {
@@ -104,7 +101,7 @@ impl Concatenate {
 }
 
 // messy, will need to make state and assignment structs... also have to be tested
-// can we avoud making loops in the first place?
+// can we avoid making loops in the first place?
 impl RemoveLoops {
     pub fn new(result: &ParamPlanningResult) -> ParamPlanningResult {
         let mut duplicates: Vec<(PlanningFrame, usize, usize)> = vec!();
@@ -136,14 +133,10 @@ impl RemoveLoops {
         duplicates.sort();
         duplicates.dedup();
 
-        println!("DUPLICATES: {:?}", duplicates);
-
-        // let mut fixed: Vec<PlanningFrame> = vec!();
-
         while duplicates.len() != 0 {
-            println!("DUPLICATES: {:?}\n", duplicates);
+            // println!("DUPLICATES: {:?}\n", duplicates);
             if duplicates[0].1 != 123456789 {
-                // fixed = sorted_trace.drain(duplicates[0].1 + 1..duplicates[0].2 + 1).collect();
+                sorted_trace.drain(duplicates[0].1 + 1..duplicates[0].2 + 1).for_each(drop);
                 duplicates.remove(0);
                 if duplicates.len() != 0 {
                     duplicates[0].1 = match sorted_trace.iter().position(|x| x.state == duplicates[0].0.state) {
@@ -175,34 +168,29 @@ impl RemoveLoops {
             plan_length: sorted_trace.len() as u32 - 1,
             level: result.level,
             concat: result.concat,
-            // trace: match fixed.len() == 0 {
-            //     true => sorted_trace,
-            //     false => fixed
-            // },
             trace: sorted_trace,
-            // trace: fixed,
             time_to_solve: result.time_to_solve
         }        
     }
 }
 
 impl Compositional {
-    pub fn new(prob: &ParamPlanningProblem, params: &Vec<&Parameter>) -> () {
-        match params.iter().all(|x| !x.value) {
+    pub fn new(prob: &ParamPlanningProblem, params: &Vec<&Parameter>) -> ParamPlanningResult {
+        let return_result = match params.iter().all(|x| !x.value) {
             true => {
                 let first_params = Activate::new(params);
                 let first_result = ParamIncremental::new(&prob, &first_params.iter().map(|x| x).collect(), &0, &0);
-                recursive_subfn(&first_result, &prob, &params, &0);
+                recursive_subfn(&first_result, &prob, &params, &0)
             },
             false => {
                 let first_result = ParamIncremental::new(&prob, &params.iter().map(|&x| x).collect(), &0, &0);
-                recursive_subfn(&first_result, &prob, &params, &0);
+                recursive_subfn(&first_result, &prob, &params, &0)
             }
         };
 
         fn recursive_subfn(result: &ParamPlanningResult, prob: &ParamPlanningProblem, params: &Vec<&Parameter>, level: &u32) -> ParamPlanningResult {
             let level = level + 1;
-            let final_result: ParamPlanningResult = result.to_owned();
+            let mut final_result: ParamPlanningResult = result.to_owned();
             if !params.iter().all(|x| x.value) {
                 if result.plan_found {
                     let mut inheritance: Vec<String> = vec!() ;
@@ -210,8 +198,6 @@ impl Compositional {
                     let activated_params = Activate::new(&params);
                     let mut concat: u32 = 0;
                     if result.plan_length != 0 {
-                        println!("{:?}", result.plan_length);
-                        println!("{:?}", result.trace.len());
                         for i in 0..=result.trace.len() - 1 {
                             if i == 0 {
                                 let next_prob = ParamPlanningProblem::new(
@@ -276,14 +262,15 @@ impl Compositional {
                             }
                         } 
                     } else {
+                        // have to investigate this step more... now it feels like a hack
                         let activated_params = Activate::new(&params);
                         let next_prob = ParamPlanningProblem::new(
                             &format!("problem_l{:?}_c{:?}", level, concat),
                             params,
-                            // &prob.init,
-                            // &prob.goal,
-                            &StateToParamPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &prob),
-                            &StateToParamPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &prob),
+                            &prob.init,
+                            &prob.goal,
+                            // &StateToParamPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &prob),
+                            // &StateToParamPredicate::new(&result.trace[0].state.iter().map(|x| x.as_str()).collect(), &prob),
                             &prob.trans,
                             &prob.ltl_specs,
                             &prob.max_steps
@@ -291,35 +278,36 @@ impl Compositional {
                         let next_result = ParamIncremental::new(&next_prob, &activated_params.iter().map(|x| x).collect(), &level, &concat);
                         if next_result.plan_found {
                             level_subresults.push(next_result.to_owned());
-                            match next_result.trace.last() {
-                                Some(x) => inheritance = x.state.clone(),
-                                None => panic!("No tail in the plan! 3")
-                            }
+                            // match next_result.trace.last() {
+                            //     Some(x) => inheritance = x.state.clone(),
+                            //     None => panic!("No tail in the plan! 3")
+                            // }
                         } else {
                             panic!("NO PLAN FOUND 4 !")
                         }
-                        concat = concat + 1;   
+                        // concat = concat + 1;   
                     }
                     let level_result = Concatenate::new(&level_subresults.iter().map(|x| x).collect());
-                    for t in &level_result.trace{
+                    for t in 0..level_result.trace.len() {
  
-                        println!("only_concat: {:?}", t.state);
-                        println!("only_concat: {:?}", t.trans);
+                        println!("only_concat: {:?} : {:?}", t, level_result.trace[t].state);
+                        println!("only_concat: {:?} : {:?}", t, level_result.trace[t].trans);
                         println!("=========================");
                     }
-                    let delooped_and_sorted = RemoveLoops::new(&final_result);
+                    let delooped_and_sorted = RemoveLoops::new(&level_result);
 
-                    for t in &delooped_and_sorted.trace{
+                    for t in 0..delooped_and_sorted.trace.len() {
  
-                        println!("dllpds: {:?}", t.state);
-                        println!("dllpds: {:?}", t.trans);
+                        println!("delooped: {:?} : {:?}", t, delooped_and_sorted.trace[t].state);
+                        println!("delooped: {:?} : {:?}", t, delooped_and_sorted.trace[t].trans);
                         println!("=========================");
                     }
-                    recursive_subfn(&delooped_and_sorted, &prob, &activated_params.iter().map(|x| x).collect(), &level);
+                    final_result = recursive_subfn(&delooped_and_sorted, &prob, &activated_params.iter().map(|x| x).collect(), &level);
                 }
             }
             final_result
         }
+        return_result
     }
 }
   
@@ -359,7 +347,7 @@ fn test_compositional_1(){
     let gripper_domain = vec!("cube", "ball", "empty");
     let table_domain = vec!("cube", "ball", "empty");
 
-    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain, None);
+    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain, Some(&pose_param));
     let ref_pos = EnumVariable::new("ref_pos", "pose", &pose_domain, Some(&pose_param));
 
     let act_stat = EnumVariable::new("act_stat", "status", &stat_domain, Some(&stat_param));
@@ -401,31 +389,31 @@ fn test_compositional_1(){
     let buffer_cube = Predicate::EQRL(buffer.clone(), String::from("cube"));
     let buffer_ball = Predicate::EQRL(buffer.clone(), String::from("ball"));
     let buffer_empty = Predicate::EQRL(buffer.clone(), String::from("empty"));
-    let not_buffer_cube = Predicate::NOT(Box::new(buffer_cube.clone()));
-    let not_buffer_ball = Predicate::NOT(Box::new(buffer_ball.clone()));
-    let not_buffer_empty = Predicate::NOT(Box::new(buffer_empty.clone()));
+    let _not_buffer_cube = Predicate::NOT(Box::new(buffer_cube.clone()));
+    let _not_buffer_ball = Predicate::NOT(Box::new(buffer_ball.clone()));
+    let _not_buffer_empty = Predicate::NOT(Box::new(buffer_empty.clone()));
     
     // act gripper predicates
     let gripper_cube = Predicate::EQRL(gripper.clone(), String::from("cube"));
     let gripper_ball = Predicate::EQRL(gripper.clone(), String::from("ball"));
     let gripper_empty = Predicate::EQRL(gripper.clone(), String::from("empty"));
-    let not_gripper_cube = Predicate::NOT(Box::new(gripper_cube.clone()));
-    let not_gripper_ball = Predicate::NOT(Box::new(gripper_ball.clone()));
-    let not_gripper_empty = Predicate::NOT(Box::new(gripper_empty.clone()));
+    let _not_gripper_cube = Predicate::NOT(Box::new(gripper_cube.clone()));
+    let _not_gripper_ball = Predicate::NOT(Box::new(gripper_ball.clone()));
+    let _not_gripper_empty = Predicate::NOT(Box::new(gripper_empty.clone()));
 
     // act table predicates
     let table_cube = Predicate::EQRL(table.clone(), String::from("cube"));
     let table_ball = Predicate::EQRL(table.clone(), String::from("ball"));
     let table_empty = Predicate::EQRL(table.clone(), String::from("empty"));
-    let not_table_cube = Predicate::NOT(Box::new(table_cube.clone()));
-    let not_table_ball = Predicate::NOT(Box::new(table_ball.clone()));
-    let not_table_empty = Predicate::NOT(Box::new(table_empty.clone()));
+    let _not_table_cube = Predicate::NOT(Box::new(table_cube.clone()));
+    let _not_table_ball = Predicate::NOT(Box::new(table_ball.clone()));
+    let _not_table_empty = Predicate::NOT(Box::new(table_empty.clone()));
 
     // are ref == act predicates
     let pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
     let stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
-    let not_pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
-    let not_stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
+    let _not_pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
+    let _not_stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
 
     let t1 = ParamTransition::new(
         "start_activate",
@@ -742,25 +730,24 @@ fn test_compositional_1(){
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 
 
-    let params = vec!(&pose_param, &stat_param, &cube_param);
+    let params = vec!(&cube_param, &pose_param, &stat_param);
 
     let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &specs, &max_steps);
-    
-    let level: u32 = 0;
-    let concat: u32 = 0;
 
     let result = Compositional::new(&problem, &params);
 
-    // println!("plan_found: {:?}", result.plan_found);
-    // println!("plan_lenght: {:?}", result.plan_length);
-    // println!("time_to_solve: {:?}", result.time_to_solve);
-    // println!("trace: ");
 
-    // for t in &result.trace{
+    println!("=========================");
+    println!("=========================");
+    println!("plan_found: {:?}", result.plan_found);
+    println!("plan_lenght: {:?}", result.plan_length);
+    println!("time_to_solve: {:?}", result.time_to_solve);
+    println!("trace: ");
+
+    for t in &result.trace{
  
-    //     println!("state: {:?}", t.state);
-    //     // println!("ppred: {:?}", StateToParamPredicate::new(&t.state.iter().map(|x| x.as_str()).collect(), &problem));
-    //     println!("trans: {:?}", t.trans);
-    //     println!("=========================");
-    // }
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
 }

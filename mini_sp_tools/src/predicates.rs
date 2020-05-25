@@ -257,7 +257,6 @@ fn test_eqrr_predicate(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
-    let z = EnumVariable::new("z", "letters", &vec!("a", "b", "c", "d"), None);
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
@@ -445,9 +444,7 @@ fn test_after_predicate(){
 fn test_always_predicate(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
-    let c = "c".to_string();
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
@@ -480,9 +477,7 @@ fn test_always_after_predicate(){
 fn test_eventually_predicate(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
-    let y = EnumVariable::new("y", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
-    let c = "c".to_string();
 
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);

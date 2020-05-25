@@ -38,11 +38,3 @@ pub mod z3utils;
 pub use crate::z3utils::{AstToStringZ3, ModelToStringZ3, ModelGetNumConstsZ3, ModelGetConstDeclZ3, 
     GetDeclNameZ3, ModelGetConstInterpZ3, GetSymbolStringZ3, GetCnfVectorZ3, Z3StringToStringZ3,
     AstVectorToStringZ3, Z3AstVectorToVectorAstZ3, FreshModelZ3};
-
-// pub mod z3planning;
-// pub use crate::z3planning::{Variable, Predicate, Transition, PlanningProblem, PlanningResult, PlanningFrame, PredicateToAstZ3};
-// // pub use crate::z3planning::{GetInitialStateZ3, GetSPPredicateZ3, GetSPUpdatesZ3, SeqComputePlanSPModelZ3,
-// //     SubParComputePlanSPModelZ3, PlanningFrameZ3, PlanningResultZ3, GetSPVarDomain};
-
-// pub mod z3ltlf;
-// pub use crate::z3ltlf::{GloballyZ3, NextZ3, AfterZ3}; //UntilZ3, Until2Z3, AtLeastOnceZ3};

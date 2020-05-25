@@ -1,5 +1,3 @@
-use z3_sys::*;
-use mini_sp_smt::*;
 use super::*;
 
 pub struct GetPredicateVars {

@@ -26,19 +26,19 @@ pub struct EnumVariable {
     pub param: Parameter
 }
 
-#[derive(Eq, Debug, PartialEq, Clone, PartialOrd, Ord)]
-pub struct EnumAssignment {
-    pub var: EnumVariable,
-    pub val: String
-}
+// #[derive(Eq, Debug, PartialEq, Clone, PartialOrd, Ord)]
+// pub struct EnumAssignment {
+//     pub var: EnumVariable,
+//     pub val: String
+// }
 
 // for now, later have to figure out how to add bool and int
-#[derive(Eq, Debug, PartialEq, Clone, PartialOrd, Ord)]
-pub struct State {
-    pub variables: Vec<EnumVariable>,
-    pub asssignments: Vec<EnumAssignment>,
-    pub partial: bool
-}
+// #[derive(Eq, Debug, PartialEq, Clone, PartialOrd, Ord)]
+// pub struct State {
+//     pub variables: Vec<EnumVariable>,
+//     pub asssignments: Vec<EnumAssignment>,
+//     pub partial: bool
+// }
 
 impl Parameter {
     pub fn new(name: &str, value: &bool) -> Parameter {

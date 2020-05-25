@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 use z3_sys::*;
 use mini_sp_smt::*;
 use super::*;
@@ -288,31 +288,31 @@ fn test_incremental_1(){
     let buffer_cube = Predicate::EQRL(buffer.clone(), String::from("cube"));
     let buffer_ball = Predicate::EQRL(buffer.clone(), String::from("ball"));
     let buffer_empty = Predicate::EQRL(buffer.clone(), String::from("empty"));
-    let not_buffer_cube = Predicate::NOT(Box::new(buffer_cube.clone()));
-    let not_buffer_ball = Predicate::NOT(Box::new(buffer_ball.clone()));
-    let not_buffer_empty = Predicate::NOT(Box::new(buffer_empty.clone()));
+    let _not_buffer_cube = Predicate::NOT(Box::new(buffer_cube.clone()));
+    let _not_buffer_ball = Predicate::NOT(Box::new(buffer_ball.clone()));
+    let _not_buffer_empty = Predicate::NOT(Box::new(buffer_empty.clone()));
     
     // act gripper predicates
     let gripper_cube = Predicate::EQRL(gripper.clone(), String::from("cube"));
     let gripper_ball = Predicate::EQRL(gripper.clone(), String::from("ball"));
     let gripper_empty = Predicate::EQRL(gripper.clone(), String::from("empty"));
-    let not_gripper_cube = Predicate::NOT(Box::new(gripper_cube.clone()));
-    let not_gripper_ball = Predicate::NOT(Box::new(gripper_ball.clone()));
-    let not_gripper_empty = Predicate::NOT(Box::new(gripper_empty.clone()));
+    let _not_gripper_cube = Predicate::NOT(Box::new(gripper_cube.clone()));
+    let _not_gripper_ball = Predicate::NOT(Box::new(gripper_ball.clone()));
+    let _not_gripper_empty = Predicate::NOT(Box::new(gripper_empty.clone()));
 
     // act table predicates
     let table_cube = Predicate::EQRL(table.clone(), String::from("cube"));
     let table_ball = Predicate::EQRL(table.clone(), String::from("ball"));
     let table_empty = Predicate::EQRL(table.clone(), String::from("empty"));
-    let not_table_cube = Predicate::NOT(Box::new(table_cube.clone()));
-    let not_table_ball = Predicate::NOT(Box::new(table_ball.clone()));
-    let not_table_empty = Predicate::NOT(Box::new(table_empty.clone()));
+    let _not_table_cube = Predicate::NOT(Box::new(table_cube.clone()));
+    let _not_table_ball = Predicate::NOT(Box::new(table_ball.clone()));
+    let _not_table_empty = Predicate::NOT(Box::new(table_empty.clone()));
 
     // are ref == act predicates
     let pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
     let stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
-    let not_pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
-    let not_stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
+    let _not_pos_stable = Predicate::EQRR(act_pos.clone(), ref_pos.clone());
+    let _not_stat_stable = Predicate::EQRR(act_stat.clone(), ref_stat.clone());
 
     let t1 = Transition::new(
         "start_activate", 
