@@ -14,6 +14,16 @@ pub struct Transition {
 pub struct PlanningProblem {
     pub name: String,
     pub init: Predicate,
+    pub goal: Predicate,
+    pub trans: Vec<Transition>,
+    pub ltl_specs: Predicate,
+    pub max_steps: u32
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct MultGoalsPlanningProblem {
+    pub name: String,
+    pub init: Predicate,
     pub goals: Vec<(Predicate, Predicate)>,
     pub trans: Vec<Transition>,
     pub ltl_specs: Predicate,
@@ -22,6 +32,11 @@ pub struct PlanningProblem {
 
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
 pub struct Incremental {
+    pub prob: PlanningProblem
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct MultGoalsIncremental {
     pub prob: PlanningProblem
 }
 
@@ -67,9 +82,23 @@ impl Transition {
 }
 
 impl PlanningProblem {
-    pub fn new(name: &str, init: &Predicate, goals: &Vec<(&Predicate, Option<&Predicate>)>, trans: &Vec<Transition>,
+    pub fn new(name: &str, init: &Predicate, goal: &Predicate, trans: &Vec<Transition>,
         ltl_specs: &Predicate, max_steps: &u32) -> PlanningProblem {
         PlanningProblem {
+            name: name.to_string(),
+            init: init.to_owned(),
+            goal: goal.to_owned(),
+            trans: trans.to_owned(),
+            ltl_specs: ltl_specs.to_owned(),
+            max_steps: max_steps.to_owned()
+        }
+    }
+}
+
+impl MultGoalsPlanningProblem {
+    pub fn new(name: &str, init: &Predicate, goals: &Vec<(&Predicate, Option<&Predicate>)>, trans: &Vec<Transition>,
+        ltl_specs: &Predicate, max_steps: &u32) -> MultGoalsPlanningProblem {
+        MultGoalsPlanningProblem {
             name: name.to_string(),
             init: init.to_owned(),
             goals: goals.iter().map(|x| (x.0.to_owned(), match x.1 {
@@ -107,6 +136,85 @@ impl Incremental {
         let slv = SolverZ3::new(&ctx);
 
         let problem_vars = GetProblemVars::new(&prob);
+
+        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.init, "state", &0));
+
+        SlvPushZ3::new(&ctx, &slv); // create backtracking point
+        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &0));
+        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "specs", &0));
+
+        let now = Instant::now();
+        let mut plan_found: bool = false;
+
+        let mut step: u32 = 0;
+
+        while step < prob.max_steps + 1 {
+            step = step + 1;
+            if SlvCheckZ3::new(&ctx, &slv) != 1 {
+                SlvPopZ3::new(&ctx, &slv, 1);
+
+                let mut all_trans = vec!();
+                for t in &prob.trans {
+                    let name = format!("{}_t{}", &t.name, step);
+                    let guard = PredicateToAstZ3::new(&ctx, &t.guard, "guard", &(step - 1));
+                    let update = PredicateToAstZ3::new(&ctx, &t.update, "update", &(step));
+                    let keeps = KeepVariableValues::new(&ctx, &problem_vars, &t, &step);
+
+                    all_trans.push(ANDZ3::new(&ctx, 
+                        vec!(EQZ3::new(&ctx, 
+                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), name.as_str()), 
+                            BoolZ3::new(&ctx, true)),
+                        guard, update, keeps)));
+                }
+
+                SlvAssertZ3::new(&ctx, &slv, ORZ3::new(&ctx, all_trans));
+                
+                SlvPushZ3::new(&ctx, &slv);
+                SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &step));
+                SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "specs", &step));
+                
+            } else {
+                plan_found = true;
+                break;
+            }
+        }
+
+        let planning_time = now.elapsed();
+
+        // let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
+        // let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
+        // for asrt in asrtvec {
+        //     println!("{}", AstToStringZ3::new(&ctx, asrt));
+        // }
+        // let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
+        
+        if plan_found == true {
+            let model = SlvGetModelZ3::new(&ctx, &slv);
+            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        } else {
+            let model = FreshModelZ3::new(&ctx);
+            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        }              
+    }   
+}
+
+impl MultGoalsIncremental {
+    pub fn new(prob: &MultGoalsPlanningProblem) -> PlanningResult {
+
+        let cfg = ConfigZ3::new();
+        let ctx = ContextZ3::new(&cfg);
+        let slv = SolverZ3::new(&ctx);
+
+        let problem_vars = GetProblemVars::new(&PlanningProblem::new(
+            prob.name.as_str(), 
+            &Predicate::TRUE, // since I extract only from trans...
+            &Predicate::TRUE,
+            &prob.trans,
+            &prob.ltl_specs,
+            &prob.max_steps)
+        );
 
         SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.init, "state", &0));
 
@@ -610,9 +718,9 @@ fn test_incremental_1(){
 
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 
-    let problem = PlanningProblem::new("problem_1", &init, &goals, &trans, &specs, &max_steps);
+    let problem = MultGoalsPlanningProblem::new("problem_1", &init, &goals, &trans, &specs, &max_steps);
     
-    let result = Incremental::new(&problem);
+    let result = MultGoalsIncremental::new(&problem);
 
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
@@ -806,9 +914,9 @@ fn test_incremental_2(){
 
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8);
 
-    let problem = PlanningProblem::new("problem_1", &init, &goals, &trans, &specs, &max_steps);
+    let problem = MultGoalsPlanningProblem::new("problem_1", &init, &goals, &trans, &specs, &max_steps);
     
-    let result = Incremental::new(&problem);
+    let result = MultGoalsIncremental::new(&problem);
 
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);

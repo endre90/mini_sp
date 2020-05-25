@@ -28,6 +28,18 @@ pub struct ParamPlanningProblem {
     pub name: String,
     pub params: Vec<Parameter>,
     pub init: ParamPredicate,
+    pub goal: ParamPredicate,
+    pub trans: Vec<ParamTransition>,
+    // pub ltl_specs: ParamPredicate,
+    pub ltl_specs: Predicate,
+    pub max_steps: u32
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct MultGoalsParamPlanningProblem {
+    pub name: String,
+    pub params: Vec<Parameter>,
+    pub init: ParamPredicate,
     pub goals: Vec<(ParamPredicate, Predicate)>,
     pub trans: Vec<ParamTransition>,
     // pub ltl_specs: ParamPredicate,
@@ -37,6 +49,11 @@ pub struct ParamPlanningProblem {
 
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
 pub struct ParamIncremental {
+    pub prob: ParamPlanningProblem
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct MultGoalsParamIncremental {
     pub prob: ParamPlanningProblem
 }
 
@@ -104,9 +121,24 @@ impl ParamTransition {
 }
 
 impl ParamPlanningProblem {
-    pub fn new(name: &str, params: &Vec<&Parameter>, init: &ParamPredicate, goals: &Vec<(&ParamPredicate, Option<&Predicate>)>,
+    pub fn new(name: &str, params: &Vec<&Parameter>, init: &ParamPredicate, goal: &ParamPredicate,
         trans: &Vec<ParamTransition>, ltl_specs: &Predicate, max_steps: &u32) -> ParamPlanningProblem {
         ParamPlanningProblem {
+            name: name.to_string(),
+            params: params.iter().map(|&x| x.clone()).collect(),
+            init: init.to_owned(),
+            goal: goal.to_owned(),
+            trans: trans.to_owned(),
+            ltl_specs: ltl_specs.to_owned(),
+            max_steps: max_steps.to_owned()
+        }
+    }
+}
+
+impl MultGoalsParamPlanningProblem {
+    pub fn new(name: &str, params: &Vec<&Parameter>, init: &ParamPredicate, goals: &Vec<(&ParamPredicate, Option<&Predicate>)>,
+        trans: &Vec<ParamTransition>, ltl_specs: &Predicate, max_steps: &u32) -> MultGoalsParamPlanningProblem {
+        MultGoalsParamPlanningProblem {
             name: name.to_string(),
             params: params.iter().map(|&x| x.clone()).collect(),
             init: init.to_owned(),
@@ -124,10 +156,38 @@ impl ParamPlanningProblem {
 impl ParamIncremental {
     pub fn new(prob: &ParamPlanningProblem, params: &Vec<&Parameter>, level: &u32, concat: &u32) -> ParamPlanningResult {
         let generated_init = GeneratePredicate::new(&params, &prob.init);
-        let generated_goals: Vec<(Predicate, Option<&Predicate>)> = prob.goals.iter().map(|x| (GeneratePredicate::new(&params, &x.0), Some(&x.1))).collect(); 
+        let generated_goals = GeneratePredicate::new(&params, &prob.goal);
         let generated_trans = GenerateTransitions::new(&params, &prob.trans);
 
         let generated_prob = PlanningProblem::new(
+            prob.name.as_str(), 
+            &generated_init, 
+            &generated_goals,
+            &generated_trans, 
+            &prob.ltl_specs,
+            &prob.max_steps
+        );
+
+        let inc_result = Incremental::new(&generated_prob);
+
+        ParamPlanningResult {
+            plan_found: inc_result.plan_found,
+            plan_length: inc_result.plan_length,
+            level: *level,
+            concat: *concat,
+            trace: inc_result.trace,
+            time_to_solve: inc_result.time_to_solve
+        }
+    }
+}
+
+impl MultGoalsParamIncremental {
+    pub fn new(prob: &MultGoalsParamPlanningProblem, params: &Vec<&Parameter>, level: &u32, concat: &u32) -> ParamPlanningResult {
+        let generated_init = GeneratePredicate::new(&params, &prob.init);
+        let generated_goals: Vec<(Predicate, Option<&Predicate>)> = prob.goals.iter().map(|x| (GeneratePredicate::new(&params, &x.0), Some(&x.1))).collect(); 
+        let generated_trans = GenerateTransitions::new(&params, &prob.trans);
+
+        let generated_prob = MultGoalsPlanningProblem::new(
             prob.name.as_str(), 
             &generated_init, 
             &generated_goals.iter().map(|x| (&x.0, x.1)).collect(), 
@@ -136,7 +196,7 @@ impl ParamIncremental {
             &prob.max_steps
         );
 
-        let inc_result = Incremental::new(&generated_prob);
+        let inc_result = MultGoalsIncremental::new(&generated_prob);
 
         ParamPlanningResult {
             plan_found: inc_result.plan_found,
@@ -613,12 +673,12 @@ fn test_paramincremental_1(){
 
     let params = vec!(&pose_param, &stat_param, &cube_param);
 
-    let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goals, &trans, &specs, &max_steps);
+    let problem = MultGoalsParamPlanningProblem::new("problem_1", &params, &init, &goals, &trans, &specs, &max_steps);
     
     let level: u32 = 0;
     let concat: u32 = 0;
 
-    let result = ParamIncremental::new(&problem, &params, &level, &concat);
+    let result = MultGoalsParamIncremental::new(&problem, &params, &level, &concat);
 
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
