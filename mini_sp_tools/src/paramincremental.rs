@@ -28,7 +28,7 @@ pub struct ParamPlanningProblem {
     pub name: String,
     pub params: Vec<Parameter>,
     pub init: ParamPredicate,
-    pub goal: ParamPredicate,
+    pub goals: Vec<(ParamPredicate, Predicate)>,
     pub trans: Vec<ParamTransition>,
     // pub ltl_specs: ParamPredicate,
     pub ltl_specs: Predicate,
@@ -104,13 +104,16 @@ impl ParamTransition {
 }
 
 impl ParamPlanningProblem {
-    pub fn new(name: &str, params: &Vec<&Parameter>, init: &ParamPredicate, goal: &ParamPredicate, 
+    pub fn new(name: &str, params: &Vec<&Parameter>, init: &ParamPredicate, goals: &Vec<(&ParamPredicate, Option<&Predicate>)>,
         trans: &Vec<ParamTransition>, ltl_specs: &Predicate, max_steps: &u32) -> ParamPlanningProblem {
         ParamPlanningProblem {
             name: name.to_string(),
             params: params.iter().map(|&x| x.clone()).collect(),
             init: init.to_owned(),
-            goal: goal.to_owned(),
+            goals: goals.iter().map(|x| (x.0.to_owned(), match x.1 {
+                Some(x) => x.to_owned(),
+                None => Predicate::TRUE
+            })).collect(),
             trans: trans.to_owned(),
             ltl_specs: ltl_specs.to_owned(),
             max_steps: max_steps.to_owned()
@@ -121,13 +124,13 @@ impl ParamPlanningProblem {
 impl ParamIncremental {
     pub fn new(prob: &ParamPlanningProblem, params: &Vec<&Parameter>, level: &u32, concat: &u32) -> ParamPlanningResult {
         let generated_init = GeneratePredicate::new(&params, &prob.init);
-        let generated_goal = GeneratePredicate::new(&params, &prob.goal);
+        let generated_goals: Vec<(Predicate, Option<&Predicate>)> = prob.goals.iter().map(|x| (GeneratePredicate::new(&params, &x.0), Some(&x.1))).collect(); 
         let generated_trans = GenerateTransitions::new(&params, &prob.trans);
 
         let generated_prob = PlanningProblem::new(
             prob.name.as_str(), 
             &generated_init, 
-            &generated_goal, 
+            &generated_goals.iter().map(|x| (&x.0, x.1)).collect(), 
             &generated_trans, 
             &prob.ltl_specs,
             &prob.max_steps
@@ -215,7 +218,7 @@ fn test_paramincremental_1(){
     let max_steps: u32 = 30;
 
     let pose_param = Parameter::new("pose", &true);
-    let stat_param = Parameter::new("stat", &false);
+    let stat_param = Parameter::new("stat", &true);
     let cube_param = Parameter::new("cube", &true);
 
     let pose_domain = vec!("buffer", "home", "table");
@@ -224,7 +227,7 @@ fn test_paramincremental_1(){
     let gripper_domain = vec!("cube", "ball", "empty");
     let table_domain = vec!("cube", "ball", "empty");
 
-    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain, None);
+    let act_pos = EnumVariable::new("act_pos", "pose", &pose_domain, Some(&pose_param));
     let ref_pos = EnumVariable::new("ref_pos", "pose", &pose_domain, Some(&pose_param));
 
     let act_stat = EnumVariable::new("act_stat", "status", &stat_domain, Some(&stat_param));
@@ -590,7 +593,7 @@ fn test_paramincremental_1(){
         )
     );
     
-    let goal = ParamPredicate::new(
+    let goal1 = ParamPredicate::new(
         &vec!(
             &stat_idle,
             &pos_table,
@@ -606,10 +609,11 @@ fn test_paramincremental_1(){
 
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 
+    let goals = vec!((&goal1, None));
 
     let params = vec!(&pose_param, &stat_param, &cube_param);
 
-    let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goal, &trans, &specs, &max_steps);
+    let problem = ParamPlanningProblem::new("problem_1", &params, &init, &goals, &trans, &specs, &max_steps);
     
     let level: u32 = 0;
     let concat: u32 = 0;
@@ -624,7 +628,7 @@ fn test_paramincremental_1(){
     for t in &result.trace{
  
         println!("state: {:?}", t.state);
-        println!("ppred: {:?}", StateToParamPredicate::new(&t.state.iter().map(|x| x.as_str()).collect(), &problem));
+        // println!("ppred: {:?}", StateToParamPredicate::new(&t.state.iter().map(|x| x.as_str()).collect(), &problem));
         println!("trans: {:?}", t.trans);
         println!("=========================");
     }
