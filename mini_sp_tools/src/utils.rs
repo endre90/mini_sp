@@ -15,10 +15,10 @@ pub struct GetProblemVars {
     pub vars: Vec<EnumVariable>
 }
 
-pub struct GetParamProblemVars {
-    pub pred: ParamPlanningProblem,
-    pub vars: Vec<EnumVariable>
-}
+// pub struct GetParamProblemVars {
+//     pub pred: ParamPlanningProblem,
+//     pub vars: Vec<EnumVariable>
+// }
 
 pub trait IterOps<T, I>: IntoIterator<Item = T>
     where I: IntoIterator<Item = T>,
@@ -145,18 +145,18 @@ impl GetProblemVars {
     }
 }
 
-impl GetParamProblemVars {
-    pub fn new(prob: &ParamPlanningProblem) -> Vec<EnumVariable> {
-        let mut s = Vec::new();
-        for t in &prob.trans {
-            s.extend(GetParamPredicateVars::new(&t.guard));
-            s.extend(GetParamPredicateVars::new(&t.update));
-        }
-        s.sort();
-        s.dedup();
-        s
-    }
-}
+// impl GetParamProblemVars {
+//     pub fn new(prob: &ParamPlanningProblem) -> Vec<EnumVariable> {
+//         let mut s = Vec::new();
+//         for t in &prob.trans {
+//             s.extend(GetParamPredicateVars::new(&t.guard));
+//             s.extend(GetParamPredicateVars::new(&t.update));
+//         }
+//         s.sort();
+//         s.dedup();
+//         s
+//     }
+// }
 
 // maybe write some more tests for this fn
 #[test]

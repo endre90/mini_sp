@@ -14,7 +14,7 @@ pub struct Transition {
 pub struct PlanningProblem {
     pub name: String,
     pub init: Predicate,
-    pub goal: Predicate,
+    pub goals: Vec<(Predicate, Predicate)>,
     pub trans: Vec<Transition>,
     pub ltl_specs: Predicate,
     pub max_steps: u32
@@ -67,12 +67,15 @@ impl Transition {
 }
 
 impl PlanningProblem {
-    pub fn new(name: &str, init: &Predicate, goal: &Predicate, trans: &Vec<Transition>,
+    pub fn new(name: &str, init: &Predicate, goals: &Vec<(&Predicate, Option<&Predicate>)>, trans: &Vec<Transition>,
         ltl_specs: &Predicate, max_steps: &u32) -> PlanningProblem {
         PlanningProblem {
             name: name.to_string(),
             init: init.to_owned(),
-            goal: goal.to_owned(),
+            goals: goals.iter().map(|x| (x.0.to_owned(), match x.1 {
+                Some(x) => x.to_owned(),
+                None => Predicate::TRUE
+            })).collect(),
             trans: trans.to_owned(),
             ltl_specs: ltl_specs.to_owned(),
             max_steps: max_steps.to_owned()
@@ -109,7 +112,15 @@ impl Incremental {
 
         SlvPushZ3::new(&ctx, &slv); // create backtracking point
         SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &0));
-        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "state", &0));
+        for g in &prob.goals {
+            SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &Predicate::EVENTUALLY(Box::new(g.0.to_owned())), "state", &0));
+            match g.1 {
+                Predicate::TRUE => {
+                    
+                },
+                _ => SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &Predicate::UNTIL(Box::new(g.1.to_owned()), Box::new(g.0.to_owned())), "specs", &0))
+            }
+        }
 
         let now = Instant::now();
         let mut plan_found: bool = false;
@@ -139,7 +150,16 @@ impl Incremental {
                 
                 SlvPushZ3::new(&ctx, &slv);
                 SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &step));
-                SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "state", &step));
+                for g in &prob.goals {
+                    SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &Predicate::EVENTUALLY(Box::new(g.0.to_owned())), "state", &step));
+                    match g.1 {
+                        Predicate::TRUE => {
+                            
+                        },
+                        _ => 
+                        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &Predicate::UNTIL(Box::new(g.1.to_owned()), Box::new(g.0.to_owned())), "specs", &step))
+                    }
+                }
         
             } else {
                 plan_found = true;
@@ -572,7 +592,7 @@ fn test_incremental_1(){
         )
     );
 
-    let goal = Predicate::AND(
+    let goal1 = Predicate::AND(
         vec!(
             pos_table.clone(),
             stat_idle.clone(),
@@ -586,9 +606,207 @@ fn test_incremental_1(){
         )
     );
 
+    let goals = vec!((&goal1, None));
+
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 
-    let problem = PlanningProblem::new("problem_1", &init, &goal, &trans, &specs, &max_steps);
+    let problem = PlanningProblem::new("problem_1", &init, &goals, &trans, &specs, &max_steps);
+    
+    let result = Incremental::new(&problem);
+
+    println!("plan_found: {:?}", result.plan_found);
+    println!("plan_lenght: {:?}", result.plan_length);
+    println!("time_to_solve: {:?}", result.time_to_solve);
+    println!("trace: ");
+
+    for t in &result.trace{
+ 
+        println!("state: {:?}", t.state);
+        println!("trans: {:?}", t.trans);
+        println!("=========================");
+    }
+}
+
+#[test]
+fn test_incremental_2(){
+
+    let max_steps: u32 = 30;
+
+    let r1_domain = vec!("at", "away");
+    let r2_domain = vec!("at", "away");
+    let color_domain = vec!("red", "green");
+
+    let r1_act_pos = EnumVariable::new("r1_act_pos", "r1_pose", &r1_domain, None);
+    let r1_ref_pos = EnumVariable::new("r1_ref_pos", "r1_pose", &r1_domain, None);
+
+    let r2_act_pos = EnumVariable::new("r2_act_pos", "r2_pose", &r2_domain, None);
+    let r2_ref_pos = EnumVariable::new("r2_ref_pos", "r2_pose", &r2_domain, None);
+
+    let color = EnumVariable::new("color", "color", &color_domain, None);
+
+    // act pos predicates
+    let r1_pos_at = Predicate::EQRL(r1_act_pos.clone(), String::from("at"));
+    let r1_pos_away = Predicate::EQRL(r1_act_pos.clone(), String::from("away"));
+    let r2_pos_at = Predicate::EQRL(r2_act_pos.clone(), String::from("at"));
+    let r2_pos_away = Predicate::EQRL(r2_act_pos.clone(), String::from("away"));
+    let not_r1_pos_at = Predicate::NOT(Box::new(r1_pos_at.clone()));
+    let not_r1_pos_away = Predicate::NOT(Box::new(r1_pos_away.clone()));
+    let not_r2_pos_at = Predicate::NOT(Box::new(r2_pos_at.clone()));
+    let not_r2_pos_away = Predicate::NOT(Box::new(r2_pos_away.clone()));
+
+    // ref pos predicates
+    let r1_set_pos_at = Predicate::EQRL(r1_ref_pos.clone(), String::from("at"));
+    let r1_set_pos_away = Predicate::EQRL(r1_ref_pos.clone(), String::from("away"));
+    let r2_set_pos_at = Predicate::EQRL(r2_ref_pos.clone(), String::from("at"));
+    let r2_set_pos_away = Predicate::EQRL(r2_ref_pos.clone(), String::from("away"));
+    let not_r1_set_pos_at = Predicate::NOT(Box::new(r1_set_pos_at.clone()));
+    let not_r1_set_pos_away = Predicate::NOT(Box::new(r1_set_pos_away.clone()));
+    let not_r2_set_pos_at = Predicate::NOT(Box::new(r2_set_pos_at.clone()));
+    let not_r2_set_pos_away = Predicate::NOT(Box::new(r2_set_pos_away.clone()));
+
+    // color predicates
+    let red = Predicate::EQRL(color.clone(), String::from("red"));
+    let green = Predicate::EQRL(color.clone(), String::from("green"));
+
+    // are ref == act predicates
+    let r1_pos_stable = Predicate::EQRR(r1_act_pos.clone(), r1_ref_pos.clone());
+    let r2_pos_stable = Predicate::EQRR(r2_act_pos.clone(), r2_ref_pos.clone());
+
+    let t1 = Transition::new(
+        "r1_start_move_to_at",
+        &Predicate::AND(
+            vec!(
+                r1_pos_stable.clone(),
+                not_r1_pos_at.clone(),
+                not_r1_set_pos_at.clone()
+            )
+        ),
+        &r1_set_pos_at
+    );
+
+    let t2 = Transition::new(
+        "r1_finish_move_to_at",
+        &Predicate::AND(
+            vec!(
+                not_r1_pos_at.clone(),
+                r1_set_pos_at.clone()
+            )
+        ),
+        &r1_pos_at
+    );
+
+    let t3 = Transition::new(
+        "r1_start_move_to_away",
+        &Predicate::AND(
+            vec!(
+                r1_pos_stable.clone(),
+                not_r1_pos_away.clone(),
+                not_r1_set_pos_away.clone()
+            )
+        ),
+        &r1_set_pos_away
+    );
+
+    let t4 = Transition::new(
+        "r1_finish_move_to_away",
+        &Predicate::AND(
+            vec!(
+                not_r1_pos_away.clone(),
+                r1_set_pos_away.clone()
+            )
+        ),
+        &r1_pos_away
+    );
+
+    let t5 = Transition::new(
+        "r2_start_move_to_at",
+        &Predicate::AND(
+            vec!(
+                r2_pos_stable.clone(),
+                not_r2_pos_at.clone(),
+                not_r2_set_pos_at.clone()
+            )
+        ),
+        &r2_set_pos_at
+    );
+
+    let t6 = Transition::new(
+        "r2_finish_move_to_at",
+        &Predicate::AND(
+            vec!(
+                not_r2_pos_at.clone(),
+                r2_set_pos_at.clone()
+            )
+        ),
+        &r2_pos_at
+    );
+
+    let t7 = Transition::new(
+        "r2_start_move_to_away",
+        &Predicate::AND(
+            vec!(
+                r2_pos_stable.clone(),
+                not_r2_pos_away.clone(),
+                not_r2_set_pos_away.clone()
+            )
+        ),
+        &r2_set_pos_away
+    );
+
+    let t8 = Transition::new(
+        "r2_finish_move_to_away",
+        &Predicate::AND(
+            vec!(
+                not_r2_pos_away.clone(),
+                r2_set_pos_away.clone()
+            )
+        ),
+        &r2_pos_away
+    );
+
+    let s1 = Predicate::NEVER(
+        Box::new(
+            Predicate::AND(
+                vec!(
+                    r1_pos_at.clone(),
+                    r2_pos_at.clone()
+                )
+            )
+        )
+    );
+
+    let init = Predicate::AND(
+        vec!(
+            r1_pos_stable.clone(),
+            r2_pos_stable.clone(),
+            r1_pos_away.clone(),
+            r2_pos_away.clone()
+        )
+    );
+
+    let r1_goal = Predicate::AND(
+        vec!(
+            r1_pos_at.clone()
+        )
+    );
+
+    let r2_goal = Predicate::AND(
+        vec!(
+            r2_pos_at.clone()
+        )
+    );
+
+    let specs = Predicate::AND(
+        vec!(
+            s1
+        )
+    );
+
+    let goals = vec!((&r1_goal, Some(&green)), (&r2_goal, None));
+
+    let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8);
+
+    let problem = PlanningProblem::new("problem_1", &init, &goals, &trans, &specs, &max_steps);
     
     let result = Incremental::new(&problem);
 
