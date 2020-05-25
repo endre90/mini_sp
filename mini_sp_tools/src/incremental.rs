@@ -366,7 +366,7 @@ impl <'ctx> GetPlanningResultZ3<'ctx> {
 #[test]
 fn test_incremental_1(){
 
-    let max_steps: u32 = 30;
+    let max_steps: u32 = 50;
 
     let pose_domain = vec!("buffer", "home", "table");
     let stat_domain = vec!("active", "idle");
@@ -708,13 +708,26 @@ fn test_incremental_1(){
         )
     );
 
-    let specs = Predicate::AND(
+    let goal2 = Predicate::AND(
         vec!(
-            s1, s2, s3, s4
+            pos_buffer.clone(),
+            stat_idle.clone(),
+            table_cube.clone()
         )
     );
 
-    let goals = vec!((&goal1, None));
+    let gspec = Predicate::SEQUENCE(
+        Box::new(goal1.clone()),
+        Box::new(goal2.clone())
+    );
+
+    let specs = Predicate::AND(
+        vec!(
+            s1, s2, s3, s4, gspec
+        )
+    );
+
+    let goals = vec!((&goal1, None), (&goal2, None));
 
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 

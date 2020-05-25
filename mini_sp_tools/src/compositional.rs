@@ -214,10 +214,10 @@ impl Compositional {
                                     level_subresults.push(next_result.to_owned());
                                     match next_result.trace.last() {
                                         Some(x) => inheritance = x.state.clone(),
-                                        None => panic!("No tail in the plan! 1")
+                                        None => panic!("Error cb10dd80-f6dd-4ae1-9119-116d8ba09dfa: No tail in the plan.")
                                     }
                                 } else {
-                                    panic!("NO PLAN FOUND 1 !")
+                                    panic!("Error 66a7001a-67f1-4876-9928-b90b6aa55936: No plan found.")
                                 }
                                 concat = concat + 1;                       
                             } else if i == result.trace.len() - 1 {
@@ -235,7 +235,7 @@ impl Compositional {
                                 if next_result.plan_found {
                                     level_subresults.push(next_result.clone());
                                 } else {
-                                    panic!("NO PLAN FOUND 2 !")
+                                    panic!("Error b22dd6ed-cded-4424-89d6-b828c62aa0a1: No plan found.")
                                 }
                                 concat = concat + 1;
                             } else {
@@ -253,10 +253,10 @@ impl Compositional {
                                     level_subresults.push(next_result.to_owned());
                                     match next_result.trace.last() {
                                         Some(x) => inheritance = x.state.clone(),
-                                        None => panic!("No tail in the plan! 1")
+                                        None => panic!("Error 5959aa62-0505-477e-a982-a826c4e25022: No tail in the plan.")
                                     }
                                 } else {
-                                    panic!("NO PLAN FOUND 3 !")
+                                    panic!("Error 357bd649-0ffe-4e62-8b65-c2dac34f786f: No plan found.")
                                 }
                                 concat = concat + 1;   
                             }
@@ -283,7 +283,7 @@ impl Compositional {
                             //     None => panic!("No tail in the plan! 3")
                             // }
                         } else {
-                            panic!("NO PLAN FOUND 4 !")
+                            panic!("Error 6e797cad-58f4-423d-8837-10521a986cfb: No plan found.")
                         }
                         // concat = concat + 1;   
                     }

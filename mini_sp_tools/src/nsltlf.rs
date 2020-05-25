@@ -8,11 +8,11 @@ pub struct AfterZ3<'ctx> {
     pub y: Z3_ast
 }
 
-// pub struct SomewhenAfterZ3<'ctx> {
-//     pub ctx: &'ctx ContextZ3,
-//     pub x: Z3_ast,
-//     pub y: Z3_ast
-// }
+pub struct SequenceZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub x: Z3_ast,
+    pub y: Z3_ast
+}
 
 pub struct TracePBEQZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
@@ -26,6 +26,26 @@ impl <'ctx> AfterZ3<'ctx> {
             PredicateToAstZ3::new(&ctx, x, r#type, &step),
             PredicateToAstZ3::new(&ctx, y, r#type, &(step + 1))))
     } 
+}
+
+// chronological order
+impl <'ctx> SequenceZ3<'ctx> {
+    pub fn new(ctx: &ContextZ3, x: &Predicate, y: &Predicate, r#type: &str, step: &u32) -> Z3_ast {
+        let mut disj_vec: Vec<Z3_ast> = vec!();
+        if step.to_owned() >= 1 {
+            for i in 1..step.to_owned() {
+                for j in 0..i {
+                    disj_vec.push(
+                        ANDZ3::new(&ctx, vec!(
+                            PredicateToAstZ3::new(&ctx, x, r#type, &j),
+                            PredicateToAstZ3::new(&ctx, y, r#type, &i))
+                        ) 
+                    )
+                }
+            }
+        }
+        ORZ3::new(&ctx, disj_vec)
+    }
 }
 
 // // chronological order
@@ -75,23 +95,23 @@ fn test_after_ltlf(){
     assert_eq!("(and (= x_s5 b) (= x_s6 c))", ast_to_string_z3!(&ctx, next_ltlf));
 }
 
-// #[test]
-// fn test_safter_ltlf(){
+#[test]
+fn test_sequence_ltlf(){
 
-//     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"));
-//     let b = "b".to_string();
-//     let c = "c".to_string();
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let b = "b".to_string();
+    let c = "c".to_string();
 
-//     let cfg = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&cfg);
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
 
-//     let prev = Predicate::EQRL(x.clone(), b);
-//     let next = Predicate::EQRL(x.clone(), c);
+    let prev = Predicate::EQRL(x.clone(), b);
+    let next = Predicate::EQRL(x.clone(), c);
 
-//     let next_ltlf = SomewhenAfterZ3::new(&ctx, &prev, &next, "guard", &3, &6);
+    let next_ltlf = SequenceZ3::new(&ctx, &prev, &next, "guard", &4);
 
-//     assert_eq!("(and (= x_s3 b) (or (= x_s4 c) (= x_s5 c) (= x_s6 c)))", ast_to_string_z3!(&ctx, next_ltlf));
-// }
+    assert_eq!("(or (and (= x_s0 b) (= x_s1 c))\n    (and (= x_s0 b) (= x_s2 c))\n    (and (= x_s1 b) (= x_s2 c))\n    (and (= x_s0 b) (= x_s3 c))\n    (and (= x_s1 b) (= x_s3 c))\n    (and (= x_s2 b) (= x_s3 c)))", ast_to_string_z3!(&ctx, next_ltlf));
+}
 
 #[test]
 fn test_trace_pbeq_ltlf(){

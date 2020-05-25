@@ -25,7 +25,7 @@ pub enum Predicate {
     UNTIL(Box<Predicate>, Box<Predicate>), // first one true until the second
     RELEASE(Box<Predicate>, Box<Predicate>), // first one releases the second of the duty to be true when it becomes true
     AFTER(Box<Predicate>, Box<Predicate>), // a predicate should hold in the step after the other
-    // SAFTER(Box<Predicate>, Box<Predicate>, u32), // a predicate should hold somewhen after the other, good for sequences
+    SEQUENCE(Box<Predicate>, Box<Predicate>), // a predicate should hold somewhen after the other, good for sequences
     TPBEQ(Box<Predicate>, u32) // exactly n times true in a trace
 }
 
@@ -159,7 +159,7 @@ impl <'ctx> PredicateToAstZ3<'ctx> {
             Predicate::UNTIL(x, y) => UntilZ3::new(&ctx, &x, &y, r#type, step),
             Predicate::RELEASE(x, y) => ReleaseZ3::new(&ctx, &x, &y, r#type, step),
             Predicate::AFTER(x, y) => AfterZ3::new(&ctx, &x, &y, r#type, step),
-            // Predicate::SAFTER(x, y, z) => SomewhenAfterZ3::new(&ctx, &x, &y, r#type, step, &z),
+            Predicate::SEQUENCE(x, y) => SequenceZ3::new(&ctx, &x, &y, r#type, step),
             Predicate::TPBEQ(x, y) => TracePBEQZ3::new(&ctx, &x, r#type, &y, step)
         }
     }

@@ -108,10 +108,10 @@ impl GetPredicateVars {
                 s.extend(GetPredicateVars::new(x));
                 s.extend(GetPredicateVars::new(y));
             },
-            // Predicate::SAFTER(x, y, _) => {
-            //     s.extend(GetPredicateVars::new(x));
-            //     s.extend(GetPredicateVars::new(y));
-            // },
+            Predicate::SEQUENCE(x, y) => {
+                s.extend(GetPredicateVars::new(x));
+                s.extend(GetPredicateVars::new(y));
+            },
             Predicate::TPBEQ(x, _) => s.extend(GetPredicateVars::new(x))
         }
         s.sort();
