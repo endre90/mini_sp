@@ -8,10 +8,15 @@ pub struct AfterZ3<'ctx> {
     pub y: Z3_ast
 }
 
-pub struct SequenceZ3<'ctx> {
+pub struct SomewhenAfterZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub x: Z3_ast,
     pub y: Z3_ast
+}
+
+pub struct SequenceZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub preds: Vec<Z3_ast>
 }
 
 pub struct TracePBEQZ3<'ctx> {
@@ -29,7 +34,7 @@ impl <'ctx> AfterZ3<'ctx> {
 }
 
 // chronological order
-impl <'ctx> SequenceZ3<'ctx> {
+impl <'ctx> SomewhenAfterZ3<'ctx> {
     pub fn new(ctx: &ContextZ3, x: &Predicate, y: &Predicate, r#type: &str, step: &u32) -> Z3_ast {
         let mut disj_vec: Vec<Z3_ast> = vec!();
         if step.to_owned() >= 1 {
@@ -45,6 +50,18 @@ impl <'ctx> SequenceZ3<'ctx> {
             }
         }
         ORZ3::new(&ctx, disj_vec)
+    }
+}
+
+impl <'ctx> SequenceZ3<'ctx> {
+    pub fn new(ctx: &ContextZ3, pred: &Vec<&Predicate>, r#type: &str, step: &u32) -> Z3_ast {
+        let mut conj_vec: Vec<Z3_ast> = vec!();
+        if step.to_owned() as usize > pred.len() {
+            for i in 0..pred.len() - 1{
+                conj_vec.push(SomewhenAfterZ3::new(&ctx, &pred[i as usize], &pred[(i + 1) as usize], r#type, step));
+            }
+        }
+        ANDZ3::new(&ctx, conj_vec)
     }
 }
 
@@ -96,7 +113,7 @@ fn test_after_ltlf(){
 }
 
 #[test]
-fn test_sequence_ltlf(){
+fn test_safter_ltlf(){
 
     let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
     let b = "b".to_string();
@@ -108,9 +125,31 @@ fn test_sequence_ltlf(){
     let prev = Predicate::EQRL(x.clone(), b);
     let next = Predicate::EQRL(x.clone(), c);
 
-    let next_ltlf = SequenceZ3::new(&ctx, &prev, &next, "guard", &4);
+    let next_ltlf = SomewhenAfterZ3::new(&ctx, &prev, &next, "guard", &4);
 
     assert_eq!("(or (and (= x_s0 b) (= x_s1 c))\n    (and (= x_s0 b) (= x_s2 c))\n    (and (= x_s1 b) (= x_s2 c))\n    (and (= x_s0 b) (= x_s3 c))\n    (and (= x_s1 b) (= x_s3 c))\n    (and (= x_s2 b) (= x_s3 c)))", ast_to_string_z3!(&ctx, next_ltlf));
+}
+
+#[test]
+fn test_sequence_ltlf(){
+
+    let x = EnumVariable::new("x", "letters", &vec!("a", "b", "c", "d"), None);
+    let b = "b".to_string();
+    let c = "c".to_string();
+    let d = "d".to_string();
+
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+
+    let first = Predicate::EQRL(x.clone(), b);
+    let second = Predicate::EQRL(x.clone(), c);
+    let third = Predicate::EQRL(x.clone(), d);
+
+    let seq = vec!(&first, &second, &third);
+
+    let seq_ltlf = SequenceZ3::new(&ctx, &seq, "guard", &3);
+
+    assert_eq!("(or (and (= x_s0 b) (= x_s1 c))\n    (and (= x_s0 b) (= x_s2 c))\n    (and (= x_s1 b) (= x_s2 c))\n    (and (= x_s0 b) (= x_s3 c))\n    (and (= x_s1 b) (= x_s3 c))\n    (and (= x_s2 b) (= x_s3 c)))", ast_to_string_z3!(&ctx, seq_ltlf));
 }
 
 #[test]

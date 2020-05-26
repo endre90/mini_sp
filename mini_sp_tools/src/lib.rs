@@ -4,10 +4,10 @@ pub mod basics;
 pub use crate::basics::{Parameter, EnumVariable}; //, EnumAssignment, State};
 
 pub mod ltlf;
-pub use crate::ltlf::{NextZ3, AlwaysZ3, EventuallyZ3, UntilZ3, ReleaseZ3}; //WeakNextZ3, 
+pub use crate::ltlf::{NextZ3, AlwaysZ3, EventuallyZ3, UntilZ3, ReleaseZ3}; // WeakNextZ3
 
 pub mod nsltlf;
-pub use crate::nsltlf::{AfterZ3, SequenceZ3, TracePBEQZ3}; // PeriodAfterZ3, SomewhenAfterZ3
+pub use crate::nsltlf::{AfterZ3, SomewhenAfterZ3,  SequenceZ3, TracePBEQZ3};
 
 pub mod incremental;
 pub use crate::incremental::{Transition, PlanningProblem, Incremental, KeepVariableValues,
