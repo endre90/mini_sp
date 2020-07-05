@@ -344,7 +344,7 @@ fn test_pbeq_predicate(){
     slv_check_z3!(&ctx, &slv);
 
     let model = slv_get_model_z3!(&ctx, &slv);
-    assert_eq!("z_s4 -> b\nx_s4 -> b\ny_s4 -> c\n", model_to_string_z3!(&ctx, model));
+    assert_eq!("z_s4 -> a\nx_s4 -> b\ny_s4 -> c\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -374,7 +374,7 @@ fn test_always_pbeq_predicate(){
     slv_check_z3!(&ctx, &slv);
 
     let model = slv_get_model_z3!(&ctx, &slv);
-    assert_eq!("x_s2 -> b\nx_s0 -> b\ny_s1 -> b\nz_s2 -> d\ny_s2 -> b\nz_s1 -> d\ny_s0 -> b\nz_s0 -> d\nx_s1 -> b\n", model_to_string_z3!(&ctx, model));
+    assert_eq!("x_s2 -> a\nx_s0 -> a\ny_s1 -> a\nz_s2 -> d\ny_s2 -> c\nz_s1 -> d\ny_s0 -> c\nz_s0 -> d\nx_s1 -> b\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -511,7 +511,7 @@ fn test_eventually_after_predicate(){
     slv_check_z3!(&ctx, &slv);
 
     let model = slv_get_model_z3!(&ctx, &slv);
-    assert_eq!("x_s2 -> a\nx_s0 -> b\ny_s1 -> c\ny_s4 -> b\ny_s3 -> b\ny_s2 -> b\nx_s3 -> b\nx_s1 -> a\n", model_to_string_z3!(&ctx, model));
+    assert_eq!("x_s2 -> a\nx_s0 -> a\ny_s1 -> a\ny_s4 -> c\ny_s3 -> a\ny_s2 -> a\nx_s3 -> b\nx_s1 -> a\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]

@@ -222,6 +222,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mini_sp_examples"
+version = "0.1.0"
+dependencies = [
+ "mini_sp_tools",
+ "serial_test",
+]
+
+[[package]]
 name = "mini_sp_smt"
 version = "0.1.0"
 dependencies = [

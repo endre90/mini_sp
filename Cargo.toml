@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "mini_sp_smt",
-    "mini_sp_tools"
+    "mini_sp_tools",
+    "mini_sp_examples"
 ]

@@ -56,7 +56,7 @@ impl <'ctx> SomewhenAfterZ3<'ctx> {
 impl <'ctx> SequenceZ3<'ctx> {
     pub fn new(ctx: &ContextZ3, pred: &Vec<&Predicate>, r#type: &str, step: &u32) -> Z3_ast {
         let mut conj_vec: Vec<Z3_ast> = vec!();
-        if step.to_owned() as usize > pred.len() {
+        if step.to_owned() as usize >= pred.len() {
             for i in 0..pred.len() - 1{
                 conj_vec.push(SomewhenAfterZ3::new(&ctx, &pred[i as usize], &pred[(i + 1) as usize], r#type, step));
             }
@@ -149,7 +149,7 @@ fn test_sequence_ltlf(){
 
     let seq_ltlf = SequenceZ3::new(&ctx, &seq, "guard", &3);
 
-    assert_eq!("(or (and (= x_s0 b) (= x_s1 c))\n    (and (= x_s0 b) (= x_s2 c))\n    (and (= x_s1 b) (= x_s2 c))\n    (and (= x_s0 b) (= x_s3 c))\n    (and (= x_s1 b) (= x_s3 c))\n    (and (= x_s2 b) (= x_s3 c)))", ast_to_string_z3!(&ctx, seq_ltlf));
+    assert_eq!("(and (or (and (= x_s0 b) (= x_s1 c))\n         (and (= x_s0 b) (= x_s2 c))\n         (and (= x_s1 b) (= x_s2 c)))\n     (or (and (= x_s0 c) (= x_s1 d))\n         (and (= x_s0 c) (= x_s2 d))\n         (and (= x_s1 c) (= x_s2 d))))", ast_to_string_z3!(&ctx, seq_ltlf));
 }
 
 #[test]
