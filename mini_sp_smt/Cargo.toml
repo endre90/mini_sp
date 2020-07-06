@@ -16,3 +16,8 @@ serde_json = "1.0"
 
 [dev-dependencies]
 serial_test = "0.4.0"
+criterion = "0.3"
+
+[[bench]]
+name = "bench1"
+harness = false
