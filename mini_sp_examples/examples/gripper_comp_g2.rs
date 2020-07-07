@@ -1,5 +1,5 @@
 use mini_sp_tools::*;
-use mini_sp_examples::gripper::compositional_new_grip;
+use mini_sp_examples::gripper::compositional_grip_g2;
 use std::env;
 
 fn main() {
@@ -15,26 +15,7 @@ fn main() {
         balls.push(format!("{}", b))
     };
 
-    // let balls = match nr_balls {
-    //     1 => vec!("1"),
-    //     2 => vec!("1", "2"),
-    //     3 => vec!("1", "2", "3"),
-    //     4 => vec!("1", "2", "3", "4"),
-    //     5 => vec!("1", "2", "3", "4", "5"),
-    //     6 => vec!("1", "2", "3", "4", "5", "6"),
-    //     7 => vec!("1", "2", "3", "4", "5", "6", "7"),
-    //     8 => vec!("1", "2", "3", "4", "5", "6", "7", "8"),
-    //     9 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9"),
-    //     10 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"),
-    //     11 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"),
-    //     12 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"),
-    //     13 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"),
-    //     14 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"),
-    //     15 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"),
-    //     _ => panic!("Too many balls"),
-    // };
-
-    let trans = compositional_new_grip(
+    let trans = compositional_grip_g2(
         &vec!("r1"),
         &balls.iter().map(|x| x.as_str()).collect(),
         &vec!("a", "b"),
@@ -45,6 +26,7 @@ fn main() {
     let robot_pos_domain = vec!("a", "b");
     let gripper_domain = vec!("e", "f");
 
+    let balls_param = Parameter::new("b", &false); // unrolled for individual balls separatelly
     let robot_param = Parameter::new("r", &false);
     let gripper_param = Parameter::new("g", &false);
 
@@ -76,16 +58,21 @@ fn main() {
 
     let goal = ParamPredicate::new(&goal_predicates.iter().map(|x| x).collect());
 
-    let mut params = vec!(gripper_param, robot_param);
-    params.extend(ball_params);
+    let params = vec!(gripper_param, robot_param, balls_param);
+    // params.extend(ball_params);
     let mut params_sorted = vec!();
     for po in param_order {
         for p in &params {
             if po == p.name {
-                params_sorted.push(p)
+                if po != "b".to_string() {
+                    params_sorted.push(p)
+                } else {
+                    params_sorted.extend(&ball_params)
+                }
             }
         }
     }
+
     println!("{:?}", params_sorted);
 
     let problem = ParamPlanningProblem::new("problem_1", &params_sorted, &init, &goal, &trans, &Predicate::TRUE, &max_steps);
@@ -99,9 +86,9 @@ fn main() {
     println!("trace: ");
     for t in &result.trace{
  
-        println!("state: {:?}", t.state);
+        // println!("state: {:?}", t.state);
         println!("trans: {:?}", t.trans);
-        println!("=========================");
+        // println!("=========================");
     }
     println!("============================================");
     println!("plan_found: {:?}", result.plan_found);

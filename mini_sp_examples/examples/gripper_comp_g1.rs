@@ -1,5 +1,5 @@
 use mini_sp_tools::*;
-use mini_sp_examples::gripper::compositional_grip;
+use mini_sp_examples::gripper::compositional_grip_g1;
 use std::env;
 
 fn main() {
@@ -24,7 +24,7 @@ fn main() {
         _ => panic!("Too many balls"),
     };
 
-    let trans = compositional_grip(
+    let trans = compositional_grip_g1(
         &vec!("r1"),
         &balls,
         &vec!("a", "b"),
