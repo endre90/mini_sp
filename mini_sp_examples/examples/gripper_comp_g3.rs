@@ -1,5 +1,5 @@
 use mini_sp_tools::*;
-use mini_sp_examples::gripper::compositional_grip_g1;
+use mini_sp_examples::gripper::compositional_grip_g3;
 use std::env;
 
 fn main() {
@@ -10,23 +10,23 @@ fn main() {
     let max_steps: u32 = param_order.drain(0..1).collect::<Vec<String>>()[0].parse().unwrap();
     let nr_balls: u32 = param_order.drain(0..1).collect::<Vec<String>>()[0].parse().unwrap();
 
-    let balls = match nr_balls {
-        1 => vec!("1"),
-        2 => vec!("1", "2"),
-        3 => vec!("1", "2", "3"),
-        4 => vec!("1", "2", "3", "4"),
-        5 => vec!("1", "2", "3", "4", "5"),
-        6 => vec!("1", "2", "3", "4", "5", "6"),
-        7 => vec!("1", "2", "3", "4", "5", "6", "7"),
-        8 => vec!("1", "2", "3", "4", "5", "6", "7", "8"),
-        9 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9"),
-        10 => vec!("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"),
-        _ => panic!("Too many balls"),
+    let mut balls = vec!();
+    for b in 1..=nr_balls {
+        let mut pair = ("".to_string(), "".to_string());
+        pair.0 = format!("{}", b);
+        if b % 2 == 0 {
+            pair.1 = format!("{}", b / 2)
+        } else {
+            pair.1 = format!("{}", (b / 2) + 1)
+        }
+        balls.push(pair)
     };
 
-    let trans = compositional_grip_g1(
+    println!("{:?}", balls);
+
+    let trans = compositional_grip_g3(
         &vec!("r1"),
-        &balls,
+        &balls.iter().map(|x| (x.0.as_str(), x.1.as_str())).collect(),
         &vec!("a", "b"),
         &vec!("gl", "gr")
     );
@@ -35,7 +35,7 @@ fn main() {
     let robot_pos_domain = vec!("a", "b");
     let gripper_domain = vec!("e", "f");
 
-    let ball_param = Parameter::new("b", &false);
+    let balls_param = Parameter::new("b", &false); // unrolled for individual balls separatelly
     let robot_param = Parameter::new("r", &false);
     let gripper_param = Parameter::new("g", &false);
 
@@ -45,11 +45,19 @@ fn main() {
         Predicate::EQRL(EnumVariable::new("gr", "gr", &gripper_domain, Some(&gripper_param)).clone(), String::from("e")).clone(),
     );
 
+    let mut ball_params = vec!();
     for b in &balls {
+        ball_params.push(
+            Parameter::new(&format!("b{}", b.1), &false)
+        );
         init_predicates.push(
-            Predicate::EQRL(EnumVariable::new(&format!("b{}", b), &format!("b{}", b), &ball_pos_domain, Some(&ball_param)).clone(), String::from("a")).clone(),
+            Predicate::EQRL(EnumVariable::new(&format!("b{}", b.0), &format!("b{}", b.0), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", b.1), &false))).clone(), String::from("a")).clone(),
         )
-    } 
+    }
+
+    ball_params.sort();
+    ball_params.dedup();
+    println!("{:?}", ball_params);
 
     let init = ParamPredicate::new(&init_predicates.iter().map(|x| x).collect());
 
@@ -57,21 +65,27 @@ fn main() {
 
     for b in &balls {
         goal_predicates.push(
-            Predicate::EQRL(EnumVariable::new(&format!("b{}", b), &format!("b{}", b), &ball_pos_domain, Some(&ball_param)).clone(), String::from("b")).clone(),
+            Predicate::EQRL(EnumVariable::new(&format!("b{}", b.0), &format!("b{}", b.0), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", b.1), &false))).clone(), String::from("b")).clone(),
         )
     } 
 
     let goal = ParamPredicate::new(&goal_predicates.iter().map(|x| x).collect());
 
-    let params = vec!(gripper_param, ball_param, robot_param);
+    let params = vec!(gripper_param, robot_param, balls_param);
+    // // params.extend(ball_params);
     let mut params_sorted = vec!();
     for po in param_order {
         for p in &params {
             if po == p.name {
-                params_sorted.push(p)
+                if po != "b".to_string() {
+                    params_sorted.push(p)
+                } else {
+                    params_sorted.extend(&ball_params)
+                }
             }
         }
     }
+
     println!("{:?}", params_sorted);
 
     let problem = ParamPlanningProblem::new("problem_1", &params_sorted, &init, &goal, &trans, &Predicate::TRUE, &max_steps);

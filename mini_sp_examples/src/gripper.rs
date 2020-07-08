@@ -332,7 +332,7 @@ pub fn compositional_grip_g2(robots: &Vec<&str>, balls: &Vec<&str>, rooms: &Vec<
     trans
 }
 
-pub fn compositional_grip_g3(robots: &Vec<&str>, balls: &Vec<&str>, rooms: &Vec<&str>, grippers: &Vec<&str>) -> Vec<ParamTransition> {
+pub fn compositional_grip_g3(robots: &Vec<&str>, balls: &Vec<(&str, &str)>, rooms: &Vec<&str>, grippers: &Vec<&str>) -> Vec<ParamTransition> {
 
     let ball_pos_domain = vec!("a", "b", "gl", "gr");
     let robot_pos_domain = vec!("a", "b");
@@ -372,19 +372,19 @@ pub fn compositional_grip_g3(robots: &Vec<&str>, balls: &Vec<&str>, rooms: &Vec<
                 for ball in balls {
                     pick_transitions.push(
                         ParamTransition::new(
-                            &format!("{}_pick_ball_{}_in_room_{}_with_gripper_{}", robot, ball, room, gripper),
+                            &format!("{}_pick_ball_{}_in_room_{}_with_gripper_{}", robot, ball.0, room, gripper),
                             &ParamPredicate::new(
                                 &vec!(
                                     &Predicate::EQRL(EnumVariable::new(gripper, gripper, &gripper_domain, Some(&gripper_param)), String::from("e")), 
                                     &Predicate::EQRL(EnumVariable::new(robot, robot, &robot_pos_domain, Some(&robot_param)), String::from(room.to_owned())),
-                                    &Predicate::EQRL(EnumVariable::new(&format!("b{}", ball), &format!("b{}", ball), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", ball), &false))), String::from(room.to_owned()))
+                                    &Predicate::EQRL(EnumVariable::new(&format!("b{}", ball.0), &format!("b{}", ball.0), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", ball.1), &false))), String::from(room.to_owned()))
                                 )
                             ),
                             &ParamPredicate::new(
                                 &vec!(
                                     &Predicate::EQRL(EnumVariable::new(gripper, gripper, &gripper_domain, Some(&gripper_param)), String::from("f")),
                                     // Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new(&format!("b{}", ball), &format!("b{}", ball), &ball_pos_domain, None), String::from(room)))),
-                                    &Predicate::EQRL(EnumVariable::new(&format!("b{}", ball), &format!("b{}", ball), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", ball), &false))), String::from(gripper.to_owned()))
+                                    &Predicate::EQRL(EnumVariable::new(&format!("b{}", ball.0), &format!("b{}", ball.0), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", ball.1), &false))), String::from(gripper.to_owned()))
                                 )
                             )
                         )
@@ -401,19 +401,19 @@ pub fn compositional_grip_g3(robots: &Vec<&str>, balls: &Vec<&str>, rooms: &Vec<
                 for ball in balls {
                     drop_transitions.push(
                         ParamTransition::new(
-                            &format!("{}_drop_ball_{}_in_room_{}_from_gripper_{}", robot, ball, room, gripper),
+                            &format!("{}_drop_ball_{}_in_room_{}_from_gripper_{}", robot, ball.0, room, gripper),
                             &ParamPredicate::new(
                                 &vec!(
                                     &Predicate::EQRL(EnumVariable::new(gripper, gripper, &gripper_domain, Some(&gripper_param)), String::from("f")),
                                     &Predicate::EQRL(EnumVariable::new(robot, robot, &robot_pos_domain, Some(&robot_param)), String::from(room.to_owned())),
-                                    &Predicate::EQRL(EnumVariable::new(&format!("b{}", ball), &format!("b{}", ball), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", ball), &false))), String::from(gripper.to_owned()))
+                                    &Predicate::EQRL(EnumVariable::new(&format!("b{}", ball.0), &format!("b{}", ball.0), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", ball.1), &false))), String::from(gripper.to_owned()))
                                 )
                             ),
                             &ParamPredicate::new(
                                 &vec!(
                                     &Predicate::EQRL(EnumVariable::new(gripper, gripper, &gripper_domain, Some(&gripper_param)), String::from("e")),
                                     // Predicate::EQRL(EnumVariable::new(robot, robot, &robot_pos_domain, None), String::from(room)),
-                                    &Predicate::EQRL(EnumVariable::new(&format!("b{}", ball), &format!("b{}", ball), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", ball), &false))), String::from(room.to_owned()))
+                                    &Predicate::EQRL(EnumVariable::new(&format!("b{}", ball.0), &format!("b{}", ball.0), &ball_pos_domain, Some(&Parameter::new(&format!("b{}", ball.1), &false))), String::from(room.to_owned()))
                                 )
                             )
                         )

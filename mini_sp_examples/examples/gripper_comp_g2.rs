@@ -11,7 +11,7 @@ fn main() {
     let nr_balls: u32 = param_order.drain(0..1).collect::<Vec<String>>()[0].parse().unwrap();
 
     let mut balls = vec!();
-    for b in 0..=nr_balls {
+    for b in 1..=nr_balls {
         balls.push(format!("{}", b))
     };
 

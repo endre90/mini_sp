@@ -68,9 +68,9 @@ fn main() {
     println!("trace: ");
     for t in &result.trace{
  
-        println!("state: {:?}", t.state);
+        // println!("state: {:?}", t.state);
         println!("trans: {:?}", t.trans);
-        println!("=========================");
+        // println!("=========================");
     }
 
     println!("plan_found: {:?}", result.plan_found);
