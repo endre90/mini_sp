@@ -2,7 +2,7 @@
 
 In gripper_comp_g1, there are 3 variable groups (r - robot, g - gripper, b - all balls) 
 
-### 1 ball - all refinement permutations:
+### 1 ball - all refinement order permutations:
 
 ```
 hyperfine -w 3 -i -m 5 --export-markdown 'gripper_comp_g1_1_ball_all_permutations.md' 'cargo run --release --example gripper_comp_g1 20 1 g b r' 'cargo run --release --example gripper_comp_g1 20 1 g r b' 'cargo run --release --example gripper_comp_g1 20 1 r b g' 'cargo run --release --example gripper_comp_g1 20 1 r g b' 'cargo run --release --example gripper_comp_g1 20 1 b g r' 'cargo run --release --example gripper_comp_g1 20 1 b r g'
@@ -19,7 +19,7 @@ hyperfine -w 3 -i -m 5 --export-markdown 'gripper_comp_g1_1_ball_all_permutation
 
 ---
 
-### 2 balls - all refinement permutations:
+### 2 balls - all refinement order permutations:
 
 ```
 hyperfine -w 3 -i -m 5 --export-markdown 'gripper_comp_g1_2_ball_all_permutations.md' 'cargo run --release --example gripper_comp_g1 20 2 g b r' 'cargo run --release --example gripper_comp_g1 20 2 g r b' 'cargo run --release --example gripper_comp_g1 20 2 r b g' 'cargo run --release --example gripper_comp_g1 20 2 r g b' 'cargo run --release --example gripper_comp_g1 20 2 b g r' 'cargo run --release --example gripper_comp_g1 20 2 b r g'
@@ -36,7 +36,7 @@ hyperfine -w 3 -i -m 5 --export-markdown 'gripper_comp_g1_2_ball_all_permutation
 
 ---
 
-### 3 balls - all refinement permutations:
+### 3 balls - all refinement order permutations:
 ##### Removed permutation 'r b g' -> too slow
 
 ```
@@ -53,7 +53,7 @@ hyperfine -w 3 -i -m 5 --export-markdown 'gripper_comp_g1_3_ball_all_permutation
 
 ---
 
-### 4 balls - all refinement permutations:
+### 4 balls - all refinement order permutations:
 ##### Removed permutation 'r b g' -> too slow <br/> Removed permutation 'b g r' -> too slow <br/> Removed permutation 'b r g' -> too slow <br/>
 
 ```
@@ -68,7 +68,7 @@ hyperfine -w 3 -i -m 5 --export-markdown 'gripper_comp_g1_4_ball_all_permutation
 
 ---
 
-### 5 balls - all refinement permutations:
+### 5 balls - all refinement order permutations:
 ##### Removed permutation 'r b g' -> too slow <br/> Removed permutation 'b g r' -> too slow <br/> Removed permutation 'b r g' -> too slow <br/>
 
 ```
@@ -83,7 +83,7 @@ hyperfine -w 3 -i -m 5 --export-markdown 'gripper_comp_g1_5_ball_all_permutation
 
 ---
 
-### 6 balls - all refinement permutations:
+### 6 balls - all refinement order permutations:
 ##### Removed permutation 'r b g' -> too slow <br/> Removed permutation 'b g r' -> too slow <br/> Removed permutation 'b r g' -> too slow <br/> Removed permutation 'g r b' -> too slow <br/> Removed permutation 'r g b' -> too slow
 
 ```
@@ -94,4 +94,19 @@ hyperfine -w 3 -i -m 5 --export-markdown 'gripper_comp_g1_6_ball_all_permutation
 |:---|---:|---:|---:|---:|
 | `cargo run --release --example gripper_comp_g1 20 6 g b r` | 11.616 ± 0.284 | 11.185 | 11.889 | 1.00 |
 
+---
+
+### 7 balls - all refinement order permutations:
+##### Removed permutation 'r b g' -> too slow <br/> Removed permutation 'b g r' -> too slow <br/> Removed permutation 'b r g' -> too slow <br/> Removed permutation 'g r b' -> too slow <br/> Removed permutation 'r g b' -> too slow
+
+```
+hyperfine -w 2 -i -m 3 --export-markdown 'gripper_comp_g1_7_ball_all_permutations.md' 'cargo run --release --example gripper_comp_g1 50 7 g b r'
+```
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `cargo run --release --example gripper_comp_g1 20 7 g b r` | 212030.2 ± 2172.3 | 210494.1 | 213566.3 | 4888.15 ± 270.10 |
+---
+
+### 8 balls - haven't checked, probably timeout
 ---

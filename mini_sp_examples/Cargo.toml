@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 mini_sp_tools = { path = "../mini_sp_tools" }
+plotlib = "0.5.1"
 
 [dev-dependencies]
 serial_test = "0.4.0"
