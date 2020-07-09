@@ -1,6 +1,6 @@
-# gripper_inc_instances commands and results
+# gripper_inc commands and results
 
-In gripper_inc_instances, there are no variable groups and only the bare incremental algorithm is used.
+In gripper_inc, there are no variable groups and only the bare incremental algorithm is used.
 
 ### Results:
 
