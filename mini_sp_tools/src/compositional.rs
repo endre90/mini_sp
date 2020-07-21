@@ -290,17 +290,17 @@ impl Compositional {
                     let level_result = Concatenate::new(&level_subresults.iter().map(|x| x).collect());
                     for t in 0..level_result.trace.len() {
  
-                        println!("only_concat: {:?} : {:?}", t, level_result.trace[t].state);
-                        println!("only_concat: {:?} : {:?}", t, level_result.trace[t].trans);
-                        println!("=========================");
+                        // println!("only_concat: {:?} : {:?}", t, level_result.trace[t].state);
+                        // println!("only_concat: {:?} : {:?}", t, level_result.trace[t].trans);
+                        // println!("=========================");
                     }
                     let delooped_and_sorted = RemoveLoops::new(&level_result);
 
                     for t in 0..delooped_and_sorted.trace.len() {
  
-                        println!("delooped: {:?} : {:?}", t, delooped_and_sorted.trace[t].state);
-                        println!("delooped: {:?} : {:?}", t, delooped_and_sorted.trace[t].trans);
-                        println!("=========================");
+                        // println!("delooped: {:?} : {:?}", t, delooped_and_sorted.trace[t].state);
+                        // println!("delooped: {:?} : {:?}", t, delooped_and_sorted.trace[t].trans);
+                        // println!("=========================");
                     }
                     final_result = recursive_subfn(&delooped_and_sorted, &prob, &activated_params.iter().map(|x| x).collect(), &level);
                 }

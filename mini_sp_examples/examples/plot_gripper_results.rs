@@ -1,7 +1,7 @@
 use plotlib::page::Page;
 use plotlib::repr::Plot;
 use plotlib::view::ContinuousView;
-use plotlib::style::{PointMarker, PointStyle};
+use plotlib::style::{PointMarker, PointStyle, LineStyle};
 
 fn main() {
     // Scatter plots expect a list of pairs
@@ -9,14 +9,15 @@ fn main() {
     let inc = vec![
         (2.0, 0.0466),
         (4.0, 1.0172),
-        (6.0, 67.5087)
+        (6.0, 67.5087),
+        (8.0, 723.5087)
         ];
 
-    let g1 = vec![
-        (2.0, 0.0926),
-        (4.0, 0.2387),
-        (6.0, 11.616)
-        ];
+    // let g1 = vec![
+    //     (2.0, 0.0926),
+    //     (4.0, 0.2387),
+    //     (6.0, 11.616)
+    //     ];
 
     let g2 = vec![
         (2.0, 0.1089),
@@ -67,29 +68,29 @@ fn main() {
     let s1: Plot = Plot::new(inc).point_style(
         PointStyle::new()
         .size(3.0)
-            .marker(PointMarker::Cross) // setting the marker to be a square
-            .colour("#2338C4"),
+            .marker(PointMarker::Square) // setting the marker to be a square
+            .colour("#404040"),
     );
 
-    let s2: Plot = Plot::new(g1).point_style(
-        PointStyle::new()
-        .size(3.0)
-            .marker(PointMarker::Cross) // setting the marker to be a square
-            .colour("#D1B623"),
-    );
+    // let s2: Plot = Plot::new(g1).point_style(
+    //     PointStyle::new()
+    //     .size(3.0)
+    //         .marker(PointMarker::Cross) // setting the marker to be a square
+    //         .colour("#D1B623"),
+    // );
 
     let s3: Plot = Plot::new(g2).point_style(
         PointStyle::new()
         .size(3.0)
-            .marker(PointMarker::Cross) // setting the marker to be a square
-            .colour("#35C788"),
+            .marker(PointMarker::Circle) // setting the marker to be a square
+            .colour("#404040"),
     );
 
     let s4: Plot = Plot::new(g3).point_style(
         PointStyle::new()
         .size(3.0)
             .marker(PointMarker::Cross) // setting the marker to be a square
-            .colour("#DD3355"),
+            .colour("#404040"),
     );
 
 
@@ -99,12 +100,12 @@ fn main() {
         .add(s3)
         .add(s4)
         .add(s1)
-        .add(s2)
+        // .add(s2)
         .x_range(0.0, 40.0)
-        .y_range(-2.0, 153.0)
+        .y_range(-2.0, 180.0)
         .x_label("Instance (balls)")
-        .y_label("Time in seconds");
+        .y_label("Seconds");
 
     // A page with a single view is then saved to an SVG file
-    Page::single(&v).save("gripper.svg").unwrap();
+    Page::single(&v).save("gripper.jpg").unwrap();
 }
