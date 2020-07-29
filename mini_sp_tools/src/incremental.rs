@@ -36,6 +36,16 @@ pub struct Incremental {
 }
 
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct IncrementalDenial {
+    pub prob: PlanningProblem
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct IncrementalAll {
+    pub prob: PlanningProblem
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
 pub struct MultGoalsIncremental {
     pub prob: PlanningProblem
 }
@@ -70,6 +80,7 @@ pub struct PlanningResult {
     pub plan_found: bool,
     pub plan_length: u32,
     pub trace: Vec<PlanningFrame>,
+    pub raw_trace: Vec<PlanningFrame>,
     pub time_to_solve: std::time::Duration,
 }
 
@@ -199,6 +210,196 @@ impl Incremental {
         }              
     }   
 }
+
+impl IncrementalDenial {
+    pub fn new(prob: &PlanningProblem, deny: &Vec<&PlanningResult>) -> PlanningResult {
+
+        let cfg = ConfigZ3::new();
+        let ctx = ContextZ3::new(&cfg);
+        let slv = SolverZ3::new(&ctx);
+
+        let problem_vars = GetProblemVars::new(&prob);
+
+        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.init, "state", &0));
+        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.init, "state", &0));
+
+        // deny previous solutions:
+        let mut denied = vec!();
+        for den in deny {
+            let mut predicate = vec!();
+            for tr in &den.raw_trace{
+                predicate.push(
+                    EQZ3::new(&ctx, 
+                        BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), tr.trans.as_str()), 
+                        BoolZ3::new(&ctx, true)
+                    )
+                )
+            }
+            denied.push(NOTZ3::new(&ctx, ANDZ3::new(&ctx, predicate)))
+        } 
+
+        SlvAssertZ3::new(&ctx, &slv, ANDZ3::new(&ctx, denied));
+
+        SlvPushZ3::new(&ctx, &slv); // create backtracking point
+        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &0));
+        SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "specs", &0));
+
+        let now = Instant::now();
+        let mut plan_found: bool = false;
+
+        let mut step: u32 = 0;
+
+        while step < prob.max_steps + 1 {
+            step = step + 1;
+            if SlvCheckZ3::new(&ctx, &slv) != 1 {
+                SlvPopZ3::new(&ctx, &slv, 1);
+
+                let mut all_trans = vec!();
+                for t in &prob.trans {
+                    let name = format!("{}_t{}", &t.name, step);
+                    let guard = PredicateToAstZ3::new(&ctx, &t.guard, "guard", &(step - 1));
+                    let update = PredicateToAstZ3::new(&ctx, &t.update, "update", &(step));
+                    let keeps = KeepVariableValues::new(&ctx, &problem_vars, &t, &step);
+
+                    all_trans.push(ANDZ3::new(&ctx, 
+                        vec!(EQZ3::new(&ctx, 
+                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), name.as_str()), 
+                            BoolZ3::new(&ctx, true)),
+                        guard, update, keeps)));
+                }
+
+                SlvAssertZ3::new(&ctx, &slv, ORZ3::new(&ctx, all_trans));
+                
+                SlvPushZ3::new(&ctx, &slv);
+                SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &step));
+                SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "specs", &step));
+                
+            } else {
+                plan_found = true;
+                break;
+            }
+        }
+
+        let planning_time = now.elapsed();
+
+        // let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
+        // let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
+        // for asrt in asrtvec {
+        //     println!("{}", AstToStringZ3::new(&ctx, asrt));
+        // }
+        // let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
+        
+        if plan_found == true {
+            let model = SlvGetModelZ3::new(&ctx, &slv);
+            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        } else {
+            let model = FreshModelZ3::new(&ctx);
+            let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        }              
+    }   
+}
+
+impl IncrementalAll {
+    pub fn new(prob: &PlanningProblem, many: u32) -> Vec<PlanningResult> {
+        let mut results = vec!();
+        let first_result = Incremental::new(&prob);
+        results.push(&first_result);
+
+        fn recursive_subfn(prob: &PlanningProblem, deny: &Vec<&PlanningResult>, many: u32) -> Vec<PlanningResult> {
+            let mut results = deny.to_owned();
+            let add_res = IncrementalDenial::new(&prob, &results);
+            let mut i: u32 = 0;
+            if !deny.iter().any(|x| x.plan_found == false) && i < many {
+                i = i + 1;
+                results.push(&add_res);
+                println!("{:?}", results);
+                recursive_subfn(&prob, &results, many);
+            }
+            results.iter().map(|&x| x.to_owned()).collect()
+        }
+
+        recursive_subfn(&prob, &results, many)
+    }
+}
+
+// impl IncrementalAll {
+//     pub fn new(prob: &PlanningProblem) -> Vec<PlanningResult> {
+
+//         let mut results = vec!();
+//         let first_result = Incremental::new(&prob);
+//         while re
+//         while 
+
+//         let cfg = ConfigZ3::new();
+//         let ctx = ContextZ3::new(&cfg);
+//         let slv = SolverZ3::new(&ctx);
+
+//         let problem_vars = GetProblemVars::new(&prob);
+
+//         SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.init, "state", &0));
+
+//         SlvPushZ3::new(&ctx, &slv); // create backtracking point
+//         SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &0));
+//         SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "specs", &0));
+
+//         let now = Instant::now();
+//         let mut plan_found: bool = false;
+
+//         let mut step: u32 = 0;
+
+//         while step < prob.max_steps + 1 {
+//             step = step + 1;
+//             if SlvCheckZ3::new(&ctx, &slv) != 1 {
+//                 SlvPopZ3::new(&ctx, &slv, 1);
+
+//                 let mut all_trans = vec!();
+//                 for t in &prob.trans {
+//                     let name = format!("{}_t{}", &t.name, step);
+//                     let guard = PredicateToAstZ3::new(&ctx, &t.guard, "guard", &(step - 1));
+//                     let update = PredicateToAstZ3::new(&ctx, &t.update, "update", &(step));
+//                     let keeps = KeepVariableValues::new(&ctx, &problem_vars, &t, &step);
+
+//                     all_trans.push(ANDZ3::new(&ctx, 
+//                         vec!(EQZ3::new(&ctx, 
+//                             BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), name.as_str()), 
+//                             BoolZ3::new(&ctx, true)),
+//                         guard, update, keeps)));
+//                 }
+
+//                 SlvAssertZ3::new(&ctx, &slv, ORZ3::new(&ctx, all_trans));
+                
+//                 SlvPushZ3::new(&ctx, &slv);
+//                 SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.ltl_specs, "specs", &step));
+//                 SlvAssertZ3::new(&ctx, &slv, PredicateToAstZ3::new(&ctx, &prob.goal, "specs", &step));
+                
+//             } else {
+//                 plan_found = true;
+//                 break;
+//             }
+//         }
+
+//         let planning_time = now.elapsed();
+
+//         // let asserts = SlvGetAssertsZ3::new(&ctx, &slv);
+//         // let asrtvec = Z3AstVectorToVectorAstZ3::new(&ctx, asserts);
+//         // for asrt in asrtvec {
+//         //     println!("{}", AstToStringZ3::new(&ctx, asrt));
+//         // }
+//         // let cnf = GetCnfVectorZ3::new(&ctx, asrtvec);
+        
+//         if plan_found == true {
+//             let model = SlvGetModelZ3::new(&ctx, &slv);
+//             let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+//             result
+//         } else {
+//             let model = FreshModelZ3::new(&ctx);
+//             let result = GetPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+//             result
+//         }              
+//     }   
+// }
 
 impl MultGoalsIncremental {
     pub fn new(prob: &MultGoalsPlanningProblem) -> PlanningResult {
@@ -332,25 +533,39 @@ impl <'ctx> GetPlanningResultZ3<'ctx> {
         // println!("{:#?}", model_vec);
 
         let mut trace: Vec<PlanningFrame> = vec!();
+        let mut raw_trace: Vec<PlanningFrame> = vec!();
         
         for i in 0..nr_steps {
             let mut frame: PlanningFrame = PlanningFrame::new(&vec!(), "");
+            let mut raw_frame: PlanningFrame = PlanningFrame::new(&vec!(), "");
             for j in &model_vec {
                 let sep: Vec<&str> = j.split(" -> ").collect();
                 if sep[0].ends_with(&format!("_s{}", i)){
+                    // raw_frame.state.push(j.to_string());
                     let trimmed_state = sep[0].trim_end_matches(&format!("_s{}", i));
                     match sep[1] {
-                        "false" => frame.state.push(sep[0].to_string()),
-                        "true" => frame.state.push(sep[0].to_string()),
-                        _ => frame.state.push(format!("{} -> {}", trimmed_state, sep[1])),
+                        "false" => {
+                            frame.state.push(sep[0].to_string());
+                            // raw_frame.state.push(j.to_string());
+                        },
+                        "true" => {
+                            frame.state.push(sep[0].to_string());
+                            // raw_frame.state.push(j.to_string());
+                        },
+                        _ => {
+                            frame.state.push(format!("{} -> {}", trimmed_state, sep[1]));
+                            // raw_frame.state.push(j.to_string());
+                        }
                     }
                 } else if sep[0].ends_with(&format!("_t{}", i)) && sep[1] == "true" {
                     let trimmed_trans = sep[0].trim_end_matches(&format!("_t{}", i));
-                    frame.trans = trimmed_trans.to_string();
+                    frame.trans = trimmed_trans.to_string();  
+                    raw_frame.trans = sep[0].to_string();
                 }
             }
             if model_vec.len() != 0 {
                 trace.push(frame);
+                raw_trace.push(raw_frame);
             }
         }
 
@@ -358,6 +573,7 @@ impl <'ctx> GetPlanningResultZ3<'ctx> {
             plan_found: plan_found,
             plan_length: nr_steps - 1,
             trace: trace,
+            raw_trace: raw_trace,
             time_to_solve: planning_time,
         }
     }

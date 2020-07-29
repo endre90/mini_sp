@@ -3,3 +3,6 @@ pub use crate::gripper::{incremental_grip, compositional_grip_g1, compositional_
 
 pub mod movie;
 pub use crate::movie::{incremental_movie, compositional_movie};
+
+pub mod sticks;
+pub use crate::sticks::{incremental_sticks};
