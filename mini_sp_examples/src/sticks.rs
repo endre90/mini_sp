@@ -36,6 +36,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     ),
                     &Predicate::AND(
                         vec!(
+                            Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
                             Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 3).to_string()),
                             Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("6")))),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("k"))
@@ -61,6 +62,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     ),
                     &Predicate::AND(
                         vec!(
+                            Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
                             Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 2).to_string()),
                             Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("6")))),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("k"))
@@ -78,6 +80,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     &format!("{}_sticks_c_takes_1", stick),
                     &Predicate::AND(
                         vec!(
+                            Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("c")),
                             // Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("0")))),
                             Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from(stick.to_owned()))
@@ -85,6 +88,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     ),
                     &Predicate::AND(
                         vec!(
+                            Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("t")),
                             Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 1).to_string()),
                             Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("6")))),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("k"))
@@ -112,6 +116,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     ),
                     &Predicate::AND(
                         vec!(
+                            Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
                             Predicate::EQRL(EnumVariable::new("k_took_3", "k_took_3", &tf_domain, None), String::from("t")),
                             Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 3).to_string()),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("c"))
@@ -137,6 +142,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     ),
                     &Predicate::AND(
                         vec!(
+                            Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
                             Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 2).to_string()),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("c"))
                         )
@@ -153,6 +159,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     &format!("{}_sticks_k_takes_1", stick),
                     &Predicate::AND(
                         vec!(
+                            Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("k")),
                             // Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("0")))),
                             Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from(stick.to_owned()))
@@ -160,6 +167,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     ),
                     &Predicate::AND(
                         vec!(
+                            Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("t")),
                             Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 1).to_string()),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("c"))
                         )
