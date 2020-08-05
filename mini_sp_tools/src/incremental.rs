@@ -3,12 +3,17 @@ use z3_sys::*;
 use mini_sp_smt::*;
 use super::*;
 
+use std::fs::File;
+use std::io::prelude::*;
+
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
 pub struct Transition {
     pub name: String,
     pub guard: Predicate,
     pub update: Predicate
 }
+
+pub struct GenerateDigraph {}
 
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
 pub struct PlanningProblem {
@@ -113,6 +118,11 @@ pub struct PlanningResult2 {
     pub plan_length: u32,
     pub trace: Vec<PlanningFrame2>,
     pub time_to_solve: std::time::Duration,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
+pub struct GetAllFrames2 {
+    pub frames: Vec<PlanningFrame2>
 }
 
 impl Transition {
@@ -385,6 +395,92 @@ impl IncrementalAll {
     }
 }
 
+impl GetAllFrames2 {
+    pub fn new(results: &Vec<PlanningResult>) -> Vec<PlanningFrame2> {
+        let mut frames = vec!();
+        for res in results {
+            let result2 = GetPlanningResult2Z3::new(res);
+            frames.extend(result2.trace)
+        }
+        frames.sort();
+        frames.dedup();
+        frames
+    }
+}
+
+
+fn main() -> std::io::Result<()> {
+    let mut file = File::create("foo.txt")?;
+    file.write_all(b"Hello, world!")?;
+    Ok(())
+}
+
+impl GenerateDigraph {
+    pub fn new(results: &Vec<PlanningFrame2>) -> std::io::Result<()> {
+        let mut states = vec!();
+        for res in results {
+            states.push(res.sink.clone());
+            states.push(res.source.clone());
+        }
+        states.sort();
+        states.dedup();
+
+        let mut file = File::create("graph.dot")?;
+        file.write(b"digraph example1 {")?;
+        for s in states {
+            // s.iter().map(|x| x.split(" -> "))
+            let mut name = s.join("");
+            name.retain(|c| c != '>');
+            name.retain(|c| c != '-');
+            name.retain(|c| c != ' ');
+            name.retain(|c| c != ' ');
+            file.write(name.as_bytes())?;
+            file.write(b"[label=\"")?;
+            file.write(name.as_bytes())?;
+            file.write(b"\"]; ")?;
+        }
+
+        for res in results {
+            let mut nsource = res.source.join("");
+            let mut nsink = res.sink.join("");
+            nsource.retain(|c| c != '>');
+            nsink.retain(|c| c != '>');
+            nsource.retain(|c| c != '-');
+            nsink.retain(|c| c != '-');
+            nsource.retain(|c| c != ' ');
+            nsink.retain(|c| c != ' ');
+            nsource.retain(|c| c != ' ');
+            nsink.retain(|c| c != ' ');
+            file.write(nsource.as_bytes())?;
+            file.write(b" -> ")?;
+            file.write(nsink.as_bytes())?;
+            file.write(b"[label=\"")?;
+            file.write(res.trans.as_bytes())?;
+            file.write(b"\"]; ")?;
+        }
+        file.write(b"}")?;
+
+
+        Ok(())
+        
+    }
+}
+
+
+// digraph example1 {
+//     N0[label="N0"];
+//     N1[label="N1"];
+//     N2[label="N2"];
+//     N3[label="N3"];
+//     N4[label="N4"];
+//     N0 -> N1[label=""];
+//     N0 -> N2[label=""];
+//     N1 -> N3[label=""];
+//     N2 -> N3[label=""];
+//     N3 -> N4[label=""];
+//     N4 -> N4[label=""];
+// }
+
 impl MultGoalsIncremental {
     pub fn new(prob: &MultGoalsPlanningProblem) -> PlanningResult {
 
@@ -600,7 +696,9 @@ impl GetPlanningResult2Z3 {
 
             new_trace.push(frame);
         }
-        new_trace.drain(0..1);
+        if new_trace.len() >= 1 {
+            new_trace.drain(0..1);
+        }
 
         PlanningResult2 {
             plan_found: prob.plan_found,

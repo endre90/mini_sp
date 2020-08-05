@@ -57,7 +57,7 @@ fn main() {
     // let result5 = IncrementalDenial::new(&problem, &vec!(&result, &result2, &result3, &result4));
     // let result6 = IncrementalDenial::new(&problem, &vec!(&result, &result2, &result3, &result4, &result5));
     // let result7 = IncrementalDenial::new(&problem, &vec!(&result, &result2, &result3, &result4, &result5, &result6));
-    // let all = IncrementalAll::new(&problem, 10);
+    let all = IncrementalAll::new(&problem, 10);
 
     println!("\n");
     println!("============================================");
@@ -76,6 +76,13 @@ fn main() {
     println!("trace2: ");
     for t in GetPlanningResult2Z3::new(&result).trace {
  
+        println!("source: {:?}", t.source);
+        println!("trans: {:?}", t.trans);
+        println!("sink: {:?}", t.sink);
+        println!("=========================");
+    }
+    println!("all frames: ");
+    for t in GetAllFrames2::new(&vec!(result)) {
         println!("source: {:?}", t.source);
         println!("trans: {:?}", t.trans);
         println!("sink: {:?}", t.sink);
@@ -156,10 +163,10 @@ fn main() {
     //     // println!("=========================");
     // }
 
-    // println!("\n");
-    // println!("============================================");
-    // println!("             ALL PLANNING RESULTS           ");
-    // println!("============================================");
+    println!("\n");
+    println!("============================================");
+    println!("             ALL PLANNING RESULTS           ");
+    println!("============================================");
     // for p in all {
     //     println!("trace: ");
     //     for t in &p.trace{
@@ -169,5 +176,17 @@ fn main() {
     //         // println!("=========================");
     //     }
     // }
+    println!("all frames: ");
+    let frames2 = GetAllFrames2::new(&all);
+    
+    for t in &frames2 {
+        println!("source: {:?}", t.source);
+        println!("trans: {:?}", t.trans);
+        println!("sink: {:?}", t.sink);
+        println!("=========================");
+    }
+
+    let _gr = GenerateDigraph::new(&frames2);
+    // Ok(())
 
 }

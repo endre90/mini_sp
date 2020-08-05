@@ -12,7 +12,7 @@ pub use crate::nsltlf::{AfterZ3, SomewhenAfterZ3,  SequenceZ3, TracePBEQZ3};
 pub mod incremental;
 pub use crate::incremental::{Transition, PlanningProblem, NonDetPlanningProblem ,Incremental, KeepVariableValues,
     PlanningFrame, GetPlanningResultZ3, PlanningResult, MultGoalsPlanningProblem,
-    MultGoalsIncremental, IncrementalDenial, IncrementalAll, PlanningFrame2, GetPlanningResult2Z3};
+    MultGoalsIncremental, IncrementalDenial, IncrementalAll, PlanningFrame2, GetPlanningResult2Z3, GetAllFrames2, GenerateDigraph};
 
 pub mod paramincremental;
 pub use crate::paramincremental::{ParamTransition, ParamPlanningProblem, ParamIncremental, 
