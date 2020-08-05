@@ -21,6 +21,17 @@ pub struct PlanningProblem {
 }
 
 #[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub struct NonDetPlanningProblem {
+    pub name: String,
+    pub init: Predicate,
+    pub goal: Predicate,
+    pub forb: Predicate,
+    pub trans: Vec<Transition>,
+    pub ltl_specs: Predicate,
+    pub max_steps: u32
+}
+
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
 pub struct MultGoalsPlanningProblem {
     pub name: String,
     pub init: Predicate,
@@ -61,6 +72,13 @@ pub struct PlanningFrame {
     pub trans: String,
 }
 
+#[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
+pub struct PlanningFrame2 {
+    pub source: Vec<String>,
+    pub sink: Vec<String>,
+    pub trans: String,
+}
+
 // maybe implement in the future when all works
 // #[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
 // pub struct PlanningFrame {
@@ -75,12 +93,25 @@ pub struct GetPlanningResultZ3<'ctx> {
     pub frames: PlanningResult
 }
 
+pub struct GetPlanningResult2Z3 {
+    pub result: PlanningResult, 
+    pub frames: PlanningResult2
+}
+
 #[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
 pub struct PlanningResult {
     pub plan_found: bool,
     pub plan_length: u32,
     pub trace: Vec<PlanningFrame>,
     pub raw_trace: Vec<PlanningFrame>,
+    pub time_to_solve: std::time::Duration,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord)]
+pub struct PlanningResult2 {
+    pub plan_found: bool,
+    pub plan_length: u32,
+    pub trace: Vec<PlanningFrame2>,
     pub time_to_solve: std::time::Duration,
 }
 
@@ -99,6 +130,21 @@ impl PlanningProblem {
             name: name.to_string(),
             init: init.to_owned(),
             goal: goal.to_owned(),
+            trans: trans.to_owned(),
+            ltl_specs: ltl_specs.to_owned(),
+            max_steps: max_steps.to_owned()
+        }
+    }
+}
+
+impl NonDetPlanningProblem {
+    pub fn new(name: &str, init: &Predicate, goal: &Predicate, forb: &Predicate, trans: &Vec<Transition>,
+        ltl_specs: &Predicate, max_steps: &u32) -> NonDetPlanningProblem {
+        NonDetPlanningProblem {
+            name: name.to_string(),
+            init: init.to_owned(),
+            goal: goal.to_owned(),
+            forb: forb.to_owned(),
             trans: trans.to_owned(),
             ltl_specs: ltl_specs.to_owned(),
             max_steps: max_steps.to_owned()
@@ -228,14 +274,16 @@ impl IncrementalDenial {
         for den in deny {
             let mut predicate = vec!();
             let mut trace_mut = den.raw_trace.clone();
-            for tr in &trace_mut.drain(1..).collect::<Vec<PlanningFrame>>() {
-                // println!("{:?}", tr.trans.to_string());
-                predicate.push(
-                    EQZ3::new(&ctx, 
-                        BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), &tr.trans.to_string()), 
-                        BoolZ3::new(&ctx, true)
+            if den.plan_found {
+                for tr in &trace_mut.drain(1..).collect::<Vec<PlanningFrame>>() {
+                    // println!("{:?}", tr.trans.to_string());
+                    predicate.push(
+                        EQZ3::new(&ctx, 
+                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), &tr.trans.to_string()), 
+                            BoolZ3::new(&ctx, true)
+                        )
                     )
-                )
+                }
             }
             denied.push(NOTZ3::new(&ctx, ANDZ3::new(&ctx, predicate)))
         }
@@ -451,6 +499,17 @@ impl PlanningFrame {
     }
 }
 
+impl PlanningFrame2 {
+    pub fn new(source: &Vec<&str>, sink: &Vec<&str>, trans: &str) -> PlanningFrame2 {
+        PlanningFrame2 {
+            source: source.iter().map(|x| x.to_string()).collect(),
+            sink: sink.iter().map(|x| x.to_string()).collect(),
+            trans: trans.to_string()
+        }
+    }
+}
+
+
 impl <'ctx> GetPlanningResultZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
     planning_time: std::time::Duration, plan_found: bool) -> PlanningResult {
@@ -512,6 +571,44 @@ impl <'ctx> GetPlanningResultZ3<'ctx> {
             raw_trace: raw_trace,
             time_to_solve: planning_time,
         }
+    }
+}
+
+impl GetPlanningResult2Z3 {
+    pub fn new(prob: &PlanningResult) -> PlanningResult2 {
+    
+        let mut new_trace = vec!();
+        let mut new = prob.trace.iter();
+        let mut prev = vec!();
+        'breakable: loop {
+            let mut frame: PlanningFrame2 = PlanningFrame2::new(&vec!(), &vec!(), "");
+            
+            // match new.next() {
+            //     Some(x) => frame.source = x.state.clone(),
+            //     None => break 'breakable
+            // }
+
+            match new.next() {
+                Some(x) => {
+                    frame.source = prev.clone();
+                    frame.sink = x.state.clone();
+                    prev = x.state.clone();
+                    frame.trans = x.trans.clone();
+                },
+                None => break 'breakable
+            }
+
+            new_trace.push(frame);
+        }
+        new_trace.drain(0..1);
+
+        PlanningResult2 {
+            plan_found: prob.plan_found,
+            plan_length: prob.plan_length,
+            trace: new_trace,
+            time_to_solve: prob.time_to_solve,
+        }
+
     }
 }
 
@@ -899,14 +996,28 @@ fn test_incremental_1(){
         )
     );
 
-    let goals = vec!((&goal1, None), (&goal2, None)); //, (&goal3, None));
+    // let goals = vec!((&goal1, None), (&goal2, None)); //, (&goal3, None));
 
     let trans = vec!(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 
-    let problem = MultGoalsPlanningProblem::new("problem_1", &init, &goals, &trans, &specs, &max_steps);
-    
-    let result = MultGoalsIncremental::new(&problem);
+    // let problem = MultGoalsPlanningProblem::new("problem_1", &init, &goals, &trans, &specs, &max_steps);
 
+    let problem = PlanningProblem::new("problem_1", &init, &goal1, &trans, &specs, &max_steps);
+    
+    // let result = MultGoalsIncremental::new(&problem);
+
+    let result = Incremental::new(&problem);
+
+    let forb = Predicate::AND(
+        vec!(
+            gripper_ball.clone(),
+            pos_buffer.clone(),
+        )
+    );
+
+    let safe = VerifySafety::new(&problem, &result, &forb);
+
+    println!("safe: {:?}", safe);
     println!("plan_found: {:?}", result.plan_found);
     println!("plan_lenght: {:?}", result.plan_length);
     println!("time_to_solve: {:?}", result.time_to_solve);
@@ -915,6 +1026,7 @@ fn test_incremental_1(){
     for t in &result.trace{
  
         println!("state: {:?}", t.state);
+        println!("state_pred: {:?}", StateToPredicate::new(&t.state.iter().map(|x| x.as_str()).collect(), &problem));
         println!("trans: {:?}", t.trans);
         println!("=========================");
     }

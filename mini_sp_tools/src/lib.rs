@@ -10,9 +10,9 @@ pub mod nsltlf;
 pub use crate::nsltlf::{AfterZ3, SomewhenAfterZ3,  SequenceZ3, TracePBEQZ3};
 
 pub mod incremental;
-pub use crate::incremental::{Transition, PlanningProblem, Incremental, KeepVariableValues,
+pub use crate::incremental::{Transition, PlanningProblem, NonDetPlanningProblem ,Incremental, KeepVariableValues,
     PlanningFrame, GetPlanningResultZ3, PlanningResult, MultGoalsPlanningProblem,
-    MultGoalsIncremental, IncrementalDenial, IncrementalAll};
+    MultGoalsIncremental, IncrementalDenial, IncrementalAll, PlanningFrame2, GetPlanningResult2Z3};
 
 pub mod paramincremental;
 pub use crate::paramincremental::{ParamTransition, ParamPlanningProblem, ParamIncremental, 
@@ -28,3 +28,6 @@ pub use crate::predicates::{Predicate, ParamPredicate, PredicateToAstZ3};
 pub mod utils;
 pub use crate::utils::{IterOps, GetPredicateVars, GetProblemVars, GetParamPredicateVars,
     GetParamProblemVars};
+
+pub mod safety;
+pub use crate::safety::{VerifySafety, StateToPredicate};

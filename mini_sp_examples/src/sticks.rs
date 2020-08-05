@@ -21,7 +21,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
 
     let mut trans = vec!();
     for stick in sticks {
-        if stick.to_string().parse::<i32>().unwrap() >= 3 {
+        let split: Vec<&str> = stick.split('s').collect();
+        if split[1].to_string().parse::<i32>().unwrap() >= 3 {
             trans.push(
                 Transition::new(
                     &format!("{}_sticks_c_takes_3", stick),
@@ -37,8 +38,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     &Predicate::AND(
                         vec!(
                             Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
-                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 3).to_string()),
-                            Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("6")))),
+                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), format!("s{}", split[1].to_string().parse::<u32>().unwrap() - 3).to_string()),
+                            Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("s6")))),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("k"))
                         )
                     )
@@ -48,7 +49,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
     }
 
     for stick in sticks {
-        if stick.to_string().parse::<i32>().unwrap() >= 2 {
+        let split: Vec<&str> = stick.split('s').collect();
+        if split[1].to_string().parse::<i32>().unwrap() >= 2 {
             trans.push(
                 Transition::new(
                     &format!("{}_sticks_c_takes_2", stick),
@@ -63,8 +65,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     &Predicate::AND(
                         vec!(
                             Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
-                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 2).to_string()),
-                            Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("6")))),
+                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), format!("s{}", split[1].to_string().parse::<u32>().unwrap() - 2).to_string()),
+                            Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("s6")))),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("k"))
                         )
                     )
@@ -74,7 +76,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
     }
 
     for stick in sticks {
-        if stick.to_string().parse::<i32>().unwrap() >= 1 {
+        let split: Vec<&str> = stick.split('s').collect();
+        if split[1].to_string().parse::<i32>().unwrap() >= 1 {
             trans.push(
                 Transition::new(
                     &format!("{}_sticks_c_takes_1", stick),
@@ -89,8 +92,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     &Predicate::AND(
                         vec!(
                             Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("t")),
-                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 1).to_string()),
-                            Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("6")))),
+                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), format!("s{}", split[1].to_string().parse::<u32>().unwrap() - 1).to_string()),
+                            Predicate::NOT(Box::new(Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), String::from("s6")))),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("k"))
                         )
                     )
@@ -100,7 +103,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
     }
 
     for stick in sticks {
-        if stick.to_string().parse::<i32>().unwrap() >= 3 {
+        let split: Vec<&str> = stick.split('s').collect();
+        if split[1].to_string().parse::<i32>().unwrap() >= 3 {
             trans.push(
                 Transition::new(
                     &format!("{}_sticks_k_takes_3", stick),
@@ -118,7 +122,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                         vec!(
                             Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
                             Predicate::EQRL(EnumVariable::new("k_took_3", "k_took_3", &tf_domain, None), String::from("t")),
-                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 3).to_string()),
+                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), format!("s{}", split[1].to_string().parse::<u32>().unwrap() - 3).to_string()),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("c"))
                         )
                     )
@@ -128,7 +132,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
     }
 
     for stick in sticks {
-        if stick.to_string().parse::<i32>().unwrap() >= 2 {
+        let split: Vec<&str> = stick.split('s').collect();
+        if split[1].to_string().parse::<i32>().unwrap() >= 2 {
             trans.push(
                 Transition::new(
                     &format!("{}_sticks_k_takes_2", stick),
@@ -143,7 +148,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     &Predicate::AND(
                         vec!(
                             Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("f")),
-                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 2).to_string()),
+                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), format!("s{}", split[1].to_string().parse::<u32>().unwrap() - 2).to_string()),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("c"))
                         )
                     )
@@ -153,7 +158,8 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
     }   
 
     for stick in sticks {
-        if stick.to_string().parse::<i32>().unwrap() >= 1 {
+        let split: Vec<&str> = stick.split('s').collect();
+        if split[1].to_string().parse::<i32>().unwrap() >= 1 {
             trans.push(
                 Transition::new(
                     &format!("{}_sticks_k_takes_1", stick),
@@ -168,7 +174,7 @@ pub fn incremental_sticks(sticks: &Vec<&str>) -> Vec<Transition> {
                     &Predicate::AND(
                         vec!(
                             Predicate::EQRL(EnumVariable::new("picked_1", "picked_1", &tf_domain, None), String::from("t")),
-                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), (stick.to_string().parse::<i32>().unwrap() - 1).to_string()),
+                            Predicate::EQRL(EnumVariable::new("sticks", "sticks", sticks, None), format!("s{}", split[1].to_string().parse::<u32>().unwrap() - 1).to_string()),
                             Predicate::EQRL(EnumVariable::new("turn", "turn", &turn_domain, None), String::from("c"))
                         )
                     )
